@@ -72,7 +72,6 @@ petgraph = "0.7.1"            # Graph library
 num-bigint = "0.4"
 num-traits = "0.2"
 num-integer = "0.1"
-rand = "0.8.5"
 
 # --- Caching ---
 redis = "0.23"
@@ -82,4 +81,8 @@ dashmap = "5.4"
 fallible-iterator = "0.2"
 stable-pattern = "0.1"
 
+# -- Packages for processing data from stun server
+byteorder  = "1"
+rand = "0.8.5"
+stunclient = "0.4"
 

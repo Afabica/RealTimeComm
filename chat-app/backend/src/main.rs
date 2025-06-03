@@ -2,8 +2,8 @@ use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger};
 use sqlx::postgres::PgPoolOptions;
 mod components;
 use components::services::database::{iterate_mongodb_collection, iterate_postgres_collection, connect_to_mongodb, connect_to_postgres, check_mongo_connection, ping};
-//use components::servers::http_server::{create_http_server, AppConfig};
-use components::services::database::{simple_authentication, simple_registration, get_specific_user_information};
+use components::servers::http_server::create_http_server;
+use components::services::database::{simple_authentication, simple_registration, get_specific_user_information}; 
 use components::services::clserver::ws_index;
 use components::services::p2p::chat_route;
 use components::models::model_mongo::{AppState, AppSettings};
@@ -74,12 +74,12 @@ async fn main() -> std::io::Result<()> {
     }
 
     // Start the Actix server
-//    HttpServer::new(move || {
-//        create_http_server(mongo_client.clone(), pool_data.clone())
-//    })
-//    .bind("127.0.0.1:8080")?  // Ensure the address is correct
-//    .run()
-//    .await
+    HttpServer::new(move || {
+        create_http_server(mongo_client.clone(), pool_data.clone())
+    })
+    .bind("127.0.0.1:8080")?  // Ensure the address is correct
+    .run()
+    .await
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(AppState {
@@ -94,5 +94,8 @@ async fn main() -> std::io::Result<()> {
     .bind("127.0.0.1:8080")?
     .run()
     .await
+//    let _ =  create_http_server();
+//
+//    Ok(())
 }
 
