@@ -1,0 +1,98 @@
+use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger};
+use sqlx::postgres::PgPoolOptions;
+mod components;
+use components::services::database::{iterate_mongodb_collection, iterate_postgres_collection, connect_to_mongodb, connect_to_postgres, check_mongo_connection, ping};
+//use components::servers::http_server::{create_http_server, AppConfig};
+use components::services::database::{simple_authentication, simple_registration, get_specific_user_information};
+use components::services::clserver::ws_index;
+use components::services::p2p::chat_route;
+use components::models::model_mongo::{AppState, AppSettings};
+use dotenvy::dotenv;
+use std::env;
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    dotenv().ok(); // Load environment variables
+    std::env::set_var("RUST_LOG", "debug");
+    env_logger::init();
+
+    let database_url = match env::var("DATABASE_URL") {
+        Ok(url) => url,
+        Err(_) => {
+            eprintln!("DATABASE_URL must be set.");
+            return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "DATABASE_URL must be set"));
+        }
+    };
+
+    // Initialize PostgreSQL connection
+    let pg_pool = match connect_to_postgres().await {
+        Ok(pool) => pool,
+        Err(err) => {
+            eprintln!("Error connecting to PostgreSQL: {:?}", err);
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "PostgreSQL connection error"));
+        }
+    };
+    println!("Connected to PostgreSQL database");
+
+    let pool_data = web::Data::new(pg_pool.clone());
+
+    // Connect to MongoDB
+    let mongo_client = match connect_to_mongodb().await {
+        Ok(client) => client,
+        Err(err) => {
+            eprintln!("Error connecting to MongoDB: {:?}", err);
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "MongoDB connection error"));
+        }
+    };
+    println!("Connected to MongoDB database");
+
+    // Optionally perform checks or operations on MongoDB and PostgreSQL
+
+    let mongo_clone = mongo_client.clone();
+    let collection_name = "users".to_string();
+    let table_name = "users".to_string();
+
+    // PostgreSQL Iteration
+    if let Err(err) = iterate_postgres_collection(&pg_pool, &collection_name).await {
+        eprintln!("PostgreSQL Iteration Error: {:?}", err);
+    } else {
+        println!("PostgreSQL Iteration Completed.");
+    }
+
+    // MongoDB Connection Check
+    if let Err(err) = check_mongo_connection(mongo_clone.clone()).await {
+        eprintln!("MongoDB Connection Error: {:?}", err);
+    } else {
+        println!("MongoDB still connected.");
+    }
+
+    // MongoDB Iteration
+    if let Err(err) = iterate_mongodb_collection(mongo_clone.clone(), &table_name).await {
+        eprintln!("MongoDB Iteration Error: {:?}", err);
+    } else {
+        println!("MongoDB Iteration Completed");
+    }
+
+    // Start the Actix server
+//    HttpServer::new(move || {
+//        create_http_server(mongo_client.clone(), pool_data.clone())
+//    })
+//    .bind("127.0.0.1:8080")?  // Ensure the address is correct
+//    .run()
+//    .await
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(AppState {
+                mongo_client: mongo_client.clone(), 
+                pg_pool: pool_data.clone() 
+            })) 
+            .wrap(Logger::default())
+            .route("/ws/", web::get().to(ws_index))
+            .route("/login", web::post().to(simple_authentication))
+            .route("/registration", web::post().to(simple_registration))
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
+}
+

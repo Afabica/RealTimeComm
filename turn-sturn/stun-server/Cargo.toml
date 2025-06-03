@@ -1,0 +1,11 @@
+[package]
+name = "stun-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+tokio = {version = "1", featues = ["full"]}
+byteorder = "1"
+rand = "0.8.5"
+stunclient = "0.4"

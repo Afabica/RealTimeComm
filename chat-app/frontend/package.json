@@ -1,0 +1,77 @@
+{
+  "name": "frontend1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/main/main.js",
+  "build": {
+    "appId": "com.example.myapp",
+    "productName": "MyElectronApp",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  },
+  "scripts": {
+    "dev": "next dev",
+    "start": "concurrently \"npm run react-start\" \"npm run electron-start\"",
+    "react-start": "react-scripts start",
+    "electron-start": "wait-on http://localhost:3000 && electron .",
+    "build": "react-scripts build && electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "^7.26.9",
+    "@babel/preset-env": "^7.26.9",
+    "@babel/preset-react": "^7.26.3",
+    "babel-loader": "^10.0.0",
+    "electron": "^34.3.0",
+    "html-webpack-plugin": "^5.6.3",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.0"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.0.17",
+    "concurrently": "^9.1.2",
+    "electon": "^0.0.1-security",
+    "electron-builder": "^25.1.8",
+    "next": "^15.3.2",
+    "nookies": "^2.5.2",
+    "postcss": "^8.5.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.2.0",
+    "react-scripts": "^5.0.1",
+    "tailwindcss": "^4.0.17",
+    "wait-on": "^8.0.3"
+  },
+  "browserify": {
+    "transform": [
+      "babelify",
+      {
+        "presets": [
+          "@babel/preset-env"
+        ]
+      }
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

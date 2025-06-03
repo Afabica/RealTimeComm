@@ -1,0 +1,387 @@
+use actix_web::{web, HttpResponse, Responder, get, post, Error as ActixError};
+use mongodb::{
+    
+    bson::{doc, oid::ObjectId},
+    options::ClientOptions,
+    Client, Collection,
+};
+use crate::components::models::model_mongo::{AppState, Message};
+use crate::components::models::model_postgres::{RegisteredUser, RegisterRequest, LoginRequest, Token};
+use crate::components::services::encryption::generate_jwt;
+use crate::components::models::chat_group::ChatGroup;
+use tokio::sync::Mutex;
+use std::sync::Arc;
+use sqlx::{PgPool, postgres::PgPoolOptions, Row};
+use sqlx::types::Uuid;
+use dotenvy::dotenv;
+use bson::DateTime;
+use jsonwebtoken::{encode, EncodingKey, Header};
+use futures::StreamExt;
+use std::env;
+use chrono::{Utc, DateTime};
+
+pub async fn connect_to_postgres() -> Result<PgPool, sqlx::Error> {
+    dotenv().ok();
+//    let database_url = "potsgres://jonny:Leopard1000@authserv.postgres.database.azure.com:5432/chatapp?sslmode=require";
+//    let database_url = "postgres://postgres:Leopard1000@localhost/chatapp";
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be setted");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url) 
+        .await?;
+    Ok(pool)
+}
+
+async fn create_new_table(pg_pool: &PgPool, table_name: &str) -> Result<(), sqlx::Error> {
+
+    let query = format!(
+        "CREATE TABLE IF NOT EXISTS \"{}\" (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL
+        );",
+        table_name 
+    );
+    
+    sqlx::query(&query).execute(pg_pool).await?;
+
+    println!("Table created!");
+    Ok(())
+}
+
+
+pub async fn connect_to_mongodb() -> Result<Arc<Mutex<Client>>, mongodb::error::Error> {
+    dotenv().ok();
+//    let url = "mongodb+srv://jonny:Leopard1000@chatapplication.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000";
+//    let url = "mongodb://localhost:27017";
+    let url = env::var("DATABASE_URL1").expect("DATABASE_URL1 must be setted");
+    let client_options = ClientOptions::parse(&url).await?;
+    let client = Client::with_options(client_options)?;
+    Ok(Arc::new(Mutex::new(client)))
+}
+
+pub async fn create_new_collection(mongo_client: Arc<Mutex<Client>>, collection_name: &str) -> mongodb::error::Result<()> {
+    let client = mongo_client.lock().await;
+    let db = client.database("chatapp");
+    db.create_collection(collection_name, None).await?;
+    println!("Collection '{}' created!", collection_name);
+
+    Ok(())
+}
+
+#[get("/ping")]
+pub async fn ping() -> impl Responder {
+    HttpResponse::Ok().json("Server is running")
+}
+
+pub async fn check_mongo_connection(client: Arc<Mutex<Client>>) -> Result<HttpResponse, ActixError> {
+    let client = client.lock().await;
+    match client.database("admin").run_command(doc! {"ping": 1}, None).await {
+        Ok(_) => Ok(HttpResponse::Ok().json("MongoDB is reachable")),
+        Err(e) => {
+            eprintln!("MongoDB connection failed: {:?}", e);
+            Ok(HttpResponse::InternalServerError().json("MongoDB connection failed"))
+        }
+    }
+}
+
+pub async fn iterate_mongodb_collection(mongo_client: Arc<Mutex<Client>>, collection_name: &str) -> Result<(), mongodb::error::Error> {
+
+    let client = mongo_client.lock().await;
+    let database = client.database("chatapp");
+    let collection: Collection<Message> = database.collection(collection_name);
+    println!("Collection retrieved");
+    let mut cursor = collection.find(None, None).await?;
+    println!("Collection throwed to cursor.");
+
+    while let Some(result) = cursor.next().await {
+        match result {
+            Ok(user) => {
+                println!("Fetched user: {:?}", user);
+
+            }
+            Err(err) => {
+                eprintln!("Error fetching document: {:?}", err);
+            }
+        }
+    }
+    Ok(())
+}
+pub async fn iterate_postgres_collection(pg_pool: &PgPool, table_name: &str) -> Result<(), sqlx::Error> {
+    let query = format!("SELECT * FROM {}", table_name);
+    let mut rows = sqlx::query(&query).fetch(pg_pool);
+
+    println!("Iterating PostgreSQL Table: {}", table_name);
+
+    while let Some(row) = rows.next().await {
+        match row {
+            Ok(row) => {
+//                let raw_id: &str = row.try_get("id")?;
+//                let id: Uuid = Uuid::parse_str(raw_id).map_err(sqlx::Error::from)?;
+                let id: Uuid = row.try_get("id")?;
+                let username: String  = row.try_get("username")?; 
+                let password: String = row.try_get("password")?;
+                println!("ID: {}, Username: {}, Password: {}", id, username, password);
+            }
+            Err(e) => {
+                eprintln!("Error fetching row: {:?}", e);
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn get_specific_user_information(
+    pg_pool: web::Data<PgPool>,
+    request: web::Json<LoginRequest>,
+) -> HttpResponse {
+    let result = sqlx::query_as::<_, RegisterRequest>(
+        "SELECT username, email, role, password FROM auth_user WHERE username = $1"
+    )
+    .bind(&request.username)
+    .fetch_optional(pg_pool.get_ref())
+    .await;
+
+    match result {
+        Ok(Some(user)) => HttpResponse::Ok().json(user),
+        Ok(None) => HttpResponse::NotFound().json("User not found"),
+        Err(err) => {
+            eprintln!("DB error: {:?}", err);
+            HttpResponse::InternalServerError().json("Database error")
+        }
+    }
+}
+
+pub async fn get_specific_user(state: web::Data<AppState>, account: &str) -> i32 {
+    let query =  format!("SELECT id FROM users WHERE account={}", account);
+     
+    let result = sqlx::query(&query)
+        .fetch_optional(state.pg_pool.get_ref())
+        .await; 
+    
+    if let Ok(Some(record)) = result {
+        let stored_account: &str = record.try_get("account").map_err(|e| {
+            eprintln!("Failed to extract account name: {:?}", e);
+            actix_web::error::ErrorInternalServerError("Failed to extract data from collection")
+        }).expect("REASON");
+        if &stored_account ==  &account {
+            return 1 as i32
+        }
+    }
+    
+    0 as i32
+}
+
+
+
+////#[post("/login")]
+//pub async fn jwt_authentication(
+//    pg_pool: web::Data<PgPool>,
+//    login_data: web::Json<LoginRequest>,
+//) -> impl Responder {
+//    let login_data = login_data.into_inner();
+//    let query = "SELECT username, password FROM auth_user WHERE username = $1";
+//    
+//    match sqlx::query_as::<_, (String, String)>(query)
+//        .bind(&login_data.username)
+//        .fetch_optional(pg_pool.get_ref())
+//        .await
+//    {
+//        Ok(Some((db_username, db_password))) => {
+//            if verify(&login_data.password, &db_password).unwrap_or(false) {
+//                let claims = Token {
+//                    sub: db_username,
+//                    exp: (Utc::now().timestamp() + 3600) as usize,
+//                };
+//                let encoding_key = EncodingKey::from_secret("Tiger".as_bytes());
+//                match encode(&Header::default(), &claims, &encoding_key) {
+//
+//                    Ok(token) => HttpResponse::Ok().json(ResponseMessage {
+//                        message: "Login successful".into(),
+//                        token: Some(token),
+//                    }),
+//                    Err(_) => HttpResponse::InternalServerError().json("Token creation error"),
+//                }
+//            } else {
+//                HttpResponse::Unauthorized().json("Invalid credentials")
+//            }
+//        }
+//
+//        Ok(None) => HttpResponse::Unauthorized().json("User not found"),
+//        Err(_) => HttpResponse::InternalServerError().json("Database error"),
+//    }
+//}
+//pub async fn simple_authentication(
+//    db_pool: web::Data<PgPool>,
+//    credentials: web::Json<LoginRequest>,
+//) -> impl Responder {
+//    let login = credentials.into_inner();
+//
+//    // SQL query to retrieve user credentials
+//    let query = "SELECT username, password FROM users WHERE username = $1";
+//
+//    // Execute query and fetch user
+//    let row_result = sqlx::query_as::<_, (String, String)>(query)
+//        .bind(&login.username)
+//        .fetch_optional(db_pool.get_ref())
+//        .await;
+//
+//    match row_result {
+//        Ok(Some((username, hashed_password))) => {
+//            // Verify password using bcrypt
+//            match verify(&login.password, &hashed_password) {
+//                Ok(true) => {
+//                    // Create JWT claims
+//                    let claims = Token {
+//                        sub: username.clone(),
+//                        exp: (Utc::now().timestamp() + 3600) as usize,
+//                    };
+//
+//                    // Encode JWT
+//                    match encode(
+//                        &Header::default(),
+//                        &claims,
+//                        &EncodingKey::from_secret("my_secret".as_bytes()),
+//                    ) {
+//                        Ok(token) => HttpResponse::Ok().json(ResponseMessage {
+//                            message: "Login successful".into(),
+//                            token: Some(token),
+//                        }),
+//                        Err(_) => HttpResponse::InternalServerError().json("Token generation failed"),
+//                    }
+//                }
+//                Ok(false) => HttpResponse::Unauthorized().json("Invalid credentials"),
+//                Err(_) => HttpResponse::InternalServerError().json("Password verification failed"),
+//            }
+//        }
+//        Ok(None) => HttpResponse::Unauthorized().json("User not found"),
+//        Err(e) => {
+//            eprintln!("Database error: {:?}", e);
+//            HttpResponse::InternalServerError().json("Database error")
+//        }
+//    }
+//}
+
+//pub async fn simple_authentication(credentials: web::Json<LoginRequest>) -> impl Responder {
+//    let login = credentials.into_inner();
+//
+//    // Simulated credential check
+//    if login.username == "admin" && login.password == "password123" {
+//        let claims = Token {
+//            sub: login.username,
+//            exp: (Utc::now().timestamp() + 3600) as usize, // 1 hour
+//        };
+//
+//        let token = encode(
+//            &Header::default(),
+//            &claims,
+//            &EncodingKey::from_secret("secret_key".as_bytes()),
+//        );
+//
+//        match token {
+//            Ok(jwt) => HttpResponse::Ok().json(ResponseMessage {
+//                message: "Login successful".into(),
+//                token: Some(jwt),
+//            }),
+//            Err(_) => HttpResponse::InternalServerError().json("Failed to create token"),
+//        }
+//    } else {
+//        HttpResponse::Unauthorized().json("Invalid username or password")
+//    }
+//} 
+//pub async fn simple_authentication(
+//    state: web::Data<AppState>,
+//    credentials: web::Json<LoginRequest>
+//) -> Result<HttpResponse, actix_web::Error> {
+pub async fn simple_authentication(
+    state: web::Data<AppState>,
+    credentials: web::Json<LoginRequest> 
+) -> Result<HttpResponse, ActixError> {
+    let login = credentials.into_inner(); 
+    let query = format!("SELECT password FROM users WHERE username = '{}'", &login.username);  
+    
+
+//    let mut rows = sqlx::query(&query).fetch_optional(pg_pool.get_ref()).await.map_err(|e| {
+//        eprintln!("Database error: {:?}", e);
+//        actix_web::error::ErrorInternalServerError("Internal server error");
+//    });
+//    let mut rows = sqlx::query(&query).fetch_optional(&state.pg_pool.get_ref()).await?;
+      let rows = sqlx::query(&query)
+          .fetch_optional(state.pg_pool.get_ref())
+          .await;
+     
+    
+    if let Ok(Some(record)) = rows { 
+        let user_info: RegisterRequest = get_specific_user_information(pg_pool, credentials);
+        let stored_password: &str = record.try_get("password").map_err(|e| {
+            eprintln!("Failed to extract password: {:?}", e);
+            actix_web::error::ErrorInternalServerError("Failed to extract data from collection")
+        })?;
+        if &login.password == stored_password {
+            
+            Ok(HttpResponse::Ok().body(" Authentication successful"))
+        } else {
+            Ok(HttpResponse::Unauthorized().body("Invalid password"))
+        }
+    } else {
+        Ok(HttpResponse::Unauthorized().body("User not found"))
+    }  
+} 
+
+pub async fn simple_registration(state: web::Data<AppState>, new_cred: web::Json<RegisterRequest>) -> Result<HttpResponse, actix_web::Error> {
+    let form = new_cred.into_inner();
+//    let query =  format!("INSERT INTO users (username, email, password, roles) values ({:?}, {:?}, {:?}, {:?})", &form.username, &form.email, &form.password, &form.roles);
+let query = r#"INSERT INTO users(username, password, email, roles) VALUES($1, $2, $3, $4) RETURNING id, username, email, roles"#;
+    
+     
+//    let result = sqlx::query(&query).execute(state.pg_pool.get_ref()).await;
+    let result = sqlx::query(&query)
+        .bind(&form.username)
+        .bind(&form.password)
+        .bind(&form.email)
+        .bind(&form.roles) 
+        .fetch_one(state.pg_pool.get_ref())
+        .await; 
+
+    match result {
+        Ok(_) => Ok(HttpResponse::Ok().body("User registered")),
+        Err(e) => {
+            eprintln!("Database error: {:?}", e);
+            Ok(HttpResponse::InternalServerError().body("Registration failed")) 
+        }
+    }
+}
+
+//pub async fn create_group(
+//    pg_user: RegisteredUser,
+//    mongo: Database,
+//) -> Result<(), AppError> {
+//    let group = ChatGroup {
+//        id: ObjectId::new(),
+//        name: "Rustceans".to_string(),
+//        description: Some("Group for Rust devs".to_string()),
+//        created_by: pg_user.id,
+//        members: vec![MemberEntry {
+//            user_id: pg_user.id,
+//            joined_at: DateTime::now(),
+//            is_admin: true,
+//        }],
+//        messages: vec![],
+//        created_at: DateTime::now(),
+//    };
+//
+//    let groups = mongo.collection::<ChatGroup>("chat_groups");
+//    groups.insert_one(group, None).await?;
+//
+//    Ok(())
+//}
+
+//pub fn wrap_register_data(new_cred: &RegisterRequest) -> Result<_, std::error::Error> { 
+//    let form = new_cred.into_inner();
+//    let new_user: RegisteredUser = new {
+//        id: None,
+//        username: form.username.to_string(),
+//        password: form.password.to_string(),
+//        
+//    }
+//}
+

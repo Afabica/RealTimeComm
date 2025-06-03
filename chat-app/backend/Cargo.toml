@@ -1,0 +1,85 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# --- Web Frameworks --- 
+actix = "0.13"
+actix-web-actors = "4"
+actix-web = "4"    # For REST API (you used Actix)
+actix-rt = "2.5.4"
+actix-identity =  "0.4"
+actix-service = "2.0.2"
+
+rocket = { version = "0.5", features = ["json"] }  # Optional JSON endpoint handling
+axum = { version = "0.6", features = ["ws"] }      # Optional if you're using Axum too
+tower-http = { version = "0.5", features = ["cors"] }
+
+# --- HTTP & Async Runtime ---
+hyper = { version = "0.14", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
+futures = "0.3" 
+
+futures-util = "0.3"
+
+# --- Environment Variables ---
+#dotenv = "0.14.1"
+dotenvy = "0.15"
+
+# --- Logging ---
+log = "0.4"
+env_logger = "0.10"
+
+# --- PostgreSQL & SQLx ORM ---
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "postgres", "runtime-tokio-native-tls", "uuid", "runtime-tokio", "macros"] }
+diesel = { version = "2.2.0", features = ["postgres"] }
+tokio-postgres = "0.7"
+libsqlite3-sys = { version = "0.26", features = ["bundled"] }
+
+# --- MongoDB ---
+mongodb = { version = "2.7", features = ["tokio-runtime"] }
+bson = "2"                                 # Updated bson version for Mongo 2.x
+
+#  the  trait bound IntoServiceFactoru is not satisfied
+
+# --- JSON & Serialization ---
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+
+# --- Time & Date ---
+chrono = { version = "0.4", features = ["serde"] }
+
+# --- Authentication & Security ---
+bcrypt = "0.15"
+jsonwebtoken = "9.1"
+rust-argon2 = "2.1"
+
+# --- Password Encryption / JWT ---
+uuid = { version = "0.8.1", features = ["v4", "serde"] }
+
+tungstenite = "0.20"
+tokio-tungstenite = "0.18"
+
+
+# --- Math, Crypto, Graphs ---
+x25519-dalek = "2.0"          # For encryption
+ndarray = "0.16.1"            # Matrix math
+nalgebra = "0.33.2"           # Algebra lib
+petgraph = "0.7.1"            # Graph library
+
+# --- BigInt / Number Tools ---
+num-bigint = "0.4"
+num-traits = "0.2"
+num-integer = "0.1"
+rand = "0.8.5"
+
+# --- Caching ---
+redis = "0.23"
+dashmap = "5.4"
+
+# --- Pattern Search / Iteration Helpers ---
+fallible-iterator = "0.2"
+stable-pattern = "0.1"
+
+
