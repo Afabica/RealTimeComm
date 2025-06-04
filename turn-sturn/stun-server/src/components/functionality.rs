@@ -79,12 +79,6 @@ pub fn build_xor_mapped_address(client_addr: SocketAddr, transaction_id: &[u8; 1
 
 
 
-pub fn generate_transaction_id() -> [u8; 12] {
-    let mut rng = rand::thread_rng();
-    let mut id = [0u8; 12];
-    rng.fill(&mut id);
-    id
-}
 
 pub fn build_stun_packet(msg_type: StunHeader, attribute: Vec<StunAttribute>) -> Vec<u8> {
     let mut buf: Vec<u8> = Vec::new();
@@ -145,4 +139,5 @@ pub fn parse_stun_attributes(buf: &[u8]) -> Result<Vec<StunAttribute>, String> {
 
     Ok(attrs)
 }
+
 

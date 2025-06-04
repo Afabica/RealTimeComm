@@ -1,23 +1,33 @@
+use std::intrinsics::atomic_cxchg_release_acquire;
 use std::net::{UdpSocket, TcpStream, SocketAddr, IpAddr, Ipv4Addr};
 use std::io::{Write, Read};
 use std::time::Duration;
 use rand::Rng;
-use crate::components::stun1::{StunHeader, StunStats, StunMessage, StunServerConfig, StunAttribute};
+use crate::components::stun1::{StunHeader, StunStats, StunMessage, StunServerConfig, StunAttribute, MessageParams};
+use crate::components::attributes::{ATTR_USERNAME, ATTR_MESSAGE_INTEGRITY, ATTR_FINGERPRINT};
+
+use super::attributes::ATTR_SOFTWARE;
 
 pub fn tcp_connector(address: &str) -> std::io::Result<()> {
-    // Connect to the TCP server, unwrap Result or propagate error with `?`
     let mut stream = TcpStream::connect(address)?;
     println!("Connected to server!");
 
     let msg = b"Hello TCP Server!";
-    stream.write_all(msg)?;  // send message
+    stream.write_all(msg)?; 
     println!("Sent message: {}", String::from_utf8_lossy(msg));
 
     let mut buffer = [0; 512];
-    let n = stream.read(&mut buffer)?;  // read response, get number of bytes read
+    let n = stream.read(&mut buffer)?;
 
     println!("Received: {}", String::from_utf8_lossy(&buffer[..n]));
     Ok(())
+}
+
+pub fn discover_public_ip() -> Option<std::net::SocketAddr> {
+    let stun_server = "127.0.0.1:19032";
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    let client = StunClient::new(stun_server);
+    client.query_external_address(&socket).ok()
 }
 
 pub fn udp_connector() -> std::io::Result<()> {
@@ -43,17 +53,83 @@ pub fn generate_transaction_id() -> [u8; 12] {
     id
 }
 
-pub fn build_binding_request(transaction_id: [u8; 12]) -> StunMessage {
+pub fn build_binding_request(user: &String) -> StunMessage {
     StunMessage {
         header: StunHeader {
             MessageType: 0x0001,
             MessageLength: 0,
             MagicCookie: 0x2112A442,
-            TransactionID: transaction_id,
+            TransactionID: generate_transaction_id(),
+        },
+        attributes: StunAttribute {
+            ATTR_Type: 0x0001,
+            Length: 0,
+            Value: user.to_string(),
+        },
+        raw: Vec::new(),
+    }
+}
+
+pub fn build_indication_request(user_identities: &MessageParams) -> StunMessage {
+    StunMessage {
+        header: StunHeader {
+            MessageType: 0x0011,
+            MessageLength: 0,
+            MagicCookie: 0x2112A442,
+            TransactionID: generate_transaction_id(),
         },
         attributes: Vec::new(),
         raw: Vec::new(),
     }
+}
+
+pub fn build_vec_of_attributes(user_identities: MessageParams) -> Vec<StunAttribute> {
+    let mut attributes: Vec<StunAttribute> = Vec::new();
+    match user_identities.MESS_TYPE {
+        0x0001 => {
+           attributes.push(StunAttribute {
+           ATTR_Type: ATTR_USERNAME,
+           Length: user_identities.USERNAME.to_string().len(),
+           Value: user_identities.USERNAME.to_string(),
+        });
+        attributes.push(StunAttribute {
+           ATTR_Type: ATTR_MESSAGE_INTEGRITY,
+           Length: user_identities.MESSAGE_INTEGRITY.to_string().len(),
+           Value: user_identities.MESSAGE_INTEGRITY.to_string(),
+        });
+        attributes.push(StunAttibute {
+           ATTR_Type: ATTR_SOFTWARE,
+           Length: user_identities.SOFTWARE.to_string().len(),
+           Value: user_identities.to_string(),
+        });
+        }
+        0x0011 => {
+            attributes.push(StunAttribute {
+                ATTR_Type: ATTR_SOFTWARE,
+                Length: user_identities.SOFTWARE.to_string().len(),
+                Value: user_identities.SOFTWARE.to_string(),
+            });
+            attributes.push(StunAttribute {
+                ATTR_Type: ATTR_USERNAME,
+                Length: user_identities.USERNAME.to_string().len(),
+                Value: user_identities.USERNAME.to_string(),
+            });
+            attributes.push(StunAttribute {
+                ATTR_Type: ATTR_MESSAGE_INTEGRITY,
+                Length: user_identities.MESSAGE_INTEGRITY.to_string().len(),
+                Value: user_identities.MESSAGE_INTEGRITY.to_string(),
+            });
+            attributes.push(StunAttribute {
+                ATTR_Type: ATTR_FINGERPRINT,
+                Length: user_identities.FINGERPRINT.to_string().len(),
+                Value: user_identities.MESSAGE_INTEGRITY.to_string(),
+            })
+        }
+        _ => None,
+    } 
+    
+    
+    attributes
 }
 
 

@@ -2,13 +2,14 @@ use std::net::{UdpSocket, SocketAddr, IpAddr, Ipv4Addr};
 use std::time::Duration;
 use rand::Rng;
 mod components;
-use components::functionality::{build_binding_request, parse_xor_mapped_address, generate_transaction_id};
+use components::functionality::{build_binding_request, parse_xor_mapped_address, generate_transaction_id, discover_public_ip};
 use components::stun1::{StunMessage, StunHeader, StunAttribute};
 
 fn main() -> std::io::Result<()> {
     let stun_server = "127.0.0.1:8080";
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_read_timeout(Some(Duration::from_secs(2)))?;
+    let address_pub = discover_public_ip();
 
     // Build STUN Binding Request message
     let transaction_id = generate_transaction_id();

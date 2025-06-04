@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::io::{Cursor, Write};
 use byteorder::{BigEndian, WriteBytesExt};
+use crate::components::attributes::StunMessageTypes;
 
 #[derive(Debug, Clone)]
 pub struct StunHeader {
@@ -182,3 +183,15 @@ impl StunStats {
         }
     }
 }
+
+pub struct MessageParams {
+   pub ATTR_Type: u16,
+   pub USERNAME: String,
+   pub MESSAGE_INTEGRITY: String,
+   pub SOFTWARE: String,
+   pub REALM: String,
+   pub NONCE: String,
+   pub FINGERPRINT: String,
+   pub MESS_TYPE: StunMessageTypes,
+}
+
