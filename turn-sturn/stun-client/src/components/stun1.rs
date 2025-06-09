@@ -23,7 +23,18 @@ impl StunHeader {
             TransactionID: buf[8..20].try_into().ok()?,
         })
     }
+
+    pub fn new() -> Option<Self> {
+        Some(Self {
+            MessageType: '0' as u16,
+            MessageLength: '0'  as u16,
+            MagicCookie: '0' as u32,
+            TransactionID: [0; 12],
+        })
+    }
 }
+
+
 
 #[derive(Debug, Clone)]
 pub struct StunAttribute {

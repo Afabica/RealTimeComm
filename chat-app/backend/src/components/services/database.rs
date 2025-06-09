@@ -6,7 +6,6 @@ use mongodb::{
 };
 use crate::components::models::model_mongo::{AppState, Message};
 use crate::components::models::model_postgres::{RegisteredUser, RegisterRequest, LoginRequest, Token};
-use crate::components::services::encryption::generate_jwt;
 use crate::components::models::chat_group::ChatGroup;
 use tokio::sync::Mutex;
 use std::sync::Arc;
@@ -192,4 +191,5 @@ pub async fn simple_registration(
         }
     }
 }
+
 

@@ -24,6 +24,12 @@ impl StunHeader {
     }
 }
 
+#[derive(Debug)]
+pub enum StunParseError {
+    BufferTooShort,
+    InvalidLength,
+}
+
 #[derive(Debug, Clone)]
 pub struct StunAttribute {
     pub ATTR_Type: u16,

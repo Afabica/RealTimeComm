@@ -14,18 +14,16 @@ pub struct Message {
  #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
  pub id: Option<ObjectId>,
  pub sender: Uuid,
- pub receiver: Uuid,
  pub content: String,
  pub timestamp: DateTime,
  pub reactions: Vec<Reaction>,
 }
 
 impl Message {
-    pub fn new(sender: Uuid, receiver: Uuid, content: String, reactions: Vec<Reaction>) -> Self {
+    pub fn new(sender: Uuid,  content: String, reactions: Vec<Reaction>) -> Self {
         Self {
             id: None,
             sender,
-            receiver,
             content,
             timestamp: DateTime::now(),
             reactions: reactions,

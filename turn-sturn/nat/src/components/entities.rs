@@ -24,3 +24,39 @@ stun_port: u16, stun_addr: SocketAddr) -> Self {
     }
 }
 
+
+#[derive(Clone, Debug)]
+pub enum NATParam {
+    FullCone,
+    RestictedCone,
+    PortRestrictedCone,
+    Symmetric,
+}
+
+#[derive(Debug, Clone Copy, PartialEq, Eq)]
+pub enum FilteringBehaviour {
+    EndpointIndependent,
+    AddressDependent,
+    AddressAndPortDependent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NatCapabilities {
+    pub support_hairpinning: bool,
+    pub preserves_port: bool,
+    pub is_cgnat: bool
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct NatTimeouts {
+    pub udp_timeout_secs: u64,
+    pub tcp_timeout_secs: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NatProfile {
+    pub mapping_behaviour: MappingBehavior,
+    pub filtering_behaviour: FilteringBehaviour,
+    pub timeoouts: NatTimeouts,
+    pub capabilities: NatCapabilities,
+}

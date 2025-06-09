@@ -8,6 +8,9 @@ use mongodb::Collection;
 use sqlx::{PgPool, query};
 use tokio::sync::Mutex;
 use sqlx::types::Uuid;
+use actix::prelude::*;
+
+use crate::components::services::clserver_entities::ChatServer;
 //use chrono::{Utc, DateTime};
 
 
@@ -34,6 +37,7 @@ pub struct RegisterUserRequest {
 pub struct AppState {
     pub mongo_client: Arc<Mutex<mongodb::Client>>,
     pub pg_pool: web::Data<PgPool>,
+    pub chat_server: Addr<ChatServer>
 }
 
 #[derive(Serialize)]

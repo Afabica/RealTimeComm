@@ -1,25 +1,83 @@
 use std::net::{UdpSocket, SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
 use rand::Rng;
 use byteorder::{BigEndian, WriteBytesExt};
-use crate::components::stun1::{StunHeader, StunAttribute, XorMappedAddress};
+use crate::components::stun1::{StunMessage, StunHeader, StunAttribute, XorMappedAddress, StunParseError};
+use crate::components::attributes::{StunMessageTypes, StunAttributeType};
+use crate::components::stun1::ResponseHandling;
 
+
+//pub fn start_udp_listener() -> std::io::Result<()> {
+//    let socket = UdpSocket::bind("127.0.0.1:8080")?;
+//    println!("Listening on 127.0.0.1:8080...");
+//    let mut buf = [0u8; 1024];
+//
+//    loop {
+//        let (amt, src) = socket.recv_from(&mut buf)?;
+//
+//        let received: &str = std::str::from_utf8(&buf[..amt]).unwrap_or("<Invalid UTF-8>"); 
+//        let size: usize = buf.len();
+////        let received: &str = String::from_utf8(buf[..size].to_vec()).unwrap();
+//        println!("Received from {}: {}", src, &buf[..size]);
+//        let u8_val: u8 = u8::from_str_radix(received, 16).expect("Invalid hex string"); 
+//        let data_slice: &[u8] = &[u8_val];
+//        let parseddata = parse_stun_attributes(data_slice.to_vec());
+//        println!("Received from {}: {:?}", src, &parseddata);
+//        let response = b"ACK";
+//        socket.send_to(response,src)?;
+//    }
+//}
 
 pub fn start_udp_listener() -> std::io::Result<()> {
     let socket = UdpSocket::bind("127.0.0.1:8080")?;
     println!("Listening on 127.0.0.1:8080...");
     let mut buf = [0u8; 1024];
+    let responce_option: u16 = 0x0000;
 
     loop {
-        let (amt, src) = socket.recv_from(&mut buf)?;
+        let (size, src) = socket.recv_from(&mut buf)?;
+        println!("\nReceived {} bytes from {}", size, src);
 
-        let received: &str = std::str::from_utf8(&buf[..amt]).unwrap_or("<Invalid UTF-8>"); 
-        println!("Received from {}: {}", src, received);
-        let u8_val: u8 = u8::from_str_radix(received, 16).expect("Invalid hex string");
-        let data_slice: &[u8] = &[u8_val];
-        let parseddata = parse_stun_attributes(data_slice);
-        println!("Received from {}: {:?}", src, &parseddata);
-        let response = b"ACK";
-        socket.send_to(response,src)?;
+        if size < 20 {
+            println!("Received too few bytes for STUN header");
+            continue;
+        }
+
+        // Parse header
+        let parsed_header = parse_stun_header(&buf[..20]);
+        let header = match parsed_header {
+            Some(h) => h,
+            None => {
+                println!("Invalid or non-STUN packet received");
+                continue;
+            }
+        };
+
+        println!("Parsed STUN Header: {:?}", header);
+
+        let expected_len = 20 + header.MessageLength as usize;
+        if size < expected_len {
+            println!("Packet does not contain full attribute data");
+            continue;
+        }
+
+        // Parse attributes
+        let data_attrs = parse_stun_attributes(&buf[20..expected_len]);
+
+        if data_attrs.is_empty() {
+            println!("No STUN attributes parsed."); 
+            continue;
+        }
+
+        for (index, attr) in data_attrs.iter().enumerate() {
+            match index {
+                0 => println!("Attr 0 (Possibly Mapped Address): {:?}", attr),
+                1 => println!("Attr 1: {:?}", attr),
+                2 => println!("Attr 2: {:?}", attr),
+                3 => println!("Attr 3: {:?}", attr),
+                _ => println!("Extra Attr: {:?}", attr),
+            }
+        } 
+    
     }
 }
 
@@ -30,6 +88,11 @@ pub fn receive_packet(socket: &UdpSocket) -> Option<(Vec<u8>, std::net::SocketAd
         Err(_) => None,
     }
 }
+
+//pub fn server_response(option: u32) -> Option<StunMessage> {
+//    
+//}
+
 
 pub fn build_xor_mapped_address(client_addr: SocketAddr, transaction_id: &[u8; 12]) -> Vec<u8> {
     let mut buf = Vec::new();
@@ -110,23 +173,82 @@ pub fn build_stun_packet(msg_type: StunHeader, attribute: Vec<StunAttribute>) ->
     buf
 }
 
-pub fn parse_stun_attributes(buf: &[u8]) -> Result<Vec<StunAttribute>, String> {
+//pub fn parse_stun_attributes(buf: &[u8]) -> Vec<StunAttribute> {
+//
+//    let mut attrs = Vec::new();
+//    let mut pos = 0;
+//
+//    while pos + 4 <= buf.len() {
+//        let attr_type = u16::from_be_bytes([buf[pos], buf[pos + 1]]);
+//        let attr_len = u16::from_be_bytes([buf[pos + 2], buf[pos + 3]]) as usize;
+//        let magic_cookie = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
+//        pos += 4;
+//
+//        if pos + attr_len as usize > buf.len() {
+//            return Vec::new();
+////            return Err(StunParseError::InvalidLength);
+//        }
+//
+//
+//        let attr_value = &buf[pos..pos + attr_len];
+//        pos += attr_len;
+//
+//        // Move pos to next multiple of 4 (padding)
+//        let padding = (4 - (attr_len % 4)) % 4;
+//        pos += padding;
+//
+//        attrs.push(StunAttribute {
+//            ATTR_Type: attr_type,
+//            Value: attr_value.to_vec(),
+//            Length: attr_len as u16,
+//        });
+//
+//    }
+//    
+//    attrs
+//}
+
+pub fn parse_stun_header(buf: &[u8]) -> Option<StunHeader> {
+   if buf.len() < 20 {
+    return None
+   } 
+
+   let message_type = u16::from_be_bytes([buf[0], buf[1]]);
+   let message_length = u16::from_be_bytes([buf[2], buf[3]]);
+   let magic_cookie = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]); 
+
+   if magic_cookie != 0x2112A442 {
+       return None;
+   }
+
+   let mut transaction_id = [0u8; 12];
+   transaction_id.copy_from_slice(&buf[8..20]);
+
+   Some(StunHeader {
+    MessageType: message_type,
+    MessageLength: message_length,
+    MagicCookie: magic_cookie,
+    TransactionID: transaction_id,
+   })
+}
+
+pub fn parse_stun_attributes(buf: &[u8]) -> Vec<StunAttribute> {
     let mut attrs = Vec::new();
     let mut pos = 0;
 
     while pos + 4 <= buf.len() {
+        // Read attribute type and length
         let attr_type = u16::from_be_bytes([buf[pos], buf[pos + 1]]);
         let attr_len = u16::from_be_bytes([buf[pos + 2], buf[pos + 3]]) as usize;
         pos += 4;
 
         if pos + attr_len > buf.len() {
-            return Err("Attribute length exceeds buffer".to_string());
+            break; 
         }
 
         let attr_value = &buf[pos..pos + attr_len];
         pos += attr_len;
 
-        // Move pos to next multiple of 4 (padding)
         let padding = (4 - (attr_len % 4)) % 4;
         pos += padding;
 
@@ -137,7 +259,44 @@ pub fn parse_stun_attributes(buf: &[u8]) -> Result<Vec<StunAttribute>, String> {
         });
     }
 
-    Ok(attrs)
+    attrs
 }
 
+
+pub fn get_xor_mapped_address_attr(attr: &Vec<StunAttribute>) -> Option<SocketAddr> {
+    for attribute in attr  {
+        if attribute.ATTR_Type == 0x0020{
+            return parse_xor_mapped_address(attribute);
+        }
+    }
+    None
+}
+
+pub fn parse_xor_mapped_address(attr: &StunAttribute) -> Option<SocketAddr> {
+    if attr.Value.len() < 8 {
+        return None;
+    }
+
+    println!("Parsing attribute type: {}", attr.ATTR_Type);
+    println!("Raw bytes: {:?}", attr.Value);
+    let family = attr.Value[1];
+    let port_xored = u16::from_be_bytes([attr.Value[2], attr.Value[3]])
+        ^ ((0x2112A442u32 >> 16) as u16);
+
+    match family {
+        0x01 => {
+            let ip_bytes: Vec<u8> = attr.Value[4..8]
+                .iter()
+                .zip(&0x2112A442u32.to_be_bytes())
+                .map(|(b,m)| b ^ m)
+                .collect();
+
+            Some(SocketAddr::new( 
+                IpAddr::V4(Ipv4Addr::new(ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3])),
+                port_xored,
+                    ))
+        }
+        _ => None,
+    }
+}
 

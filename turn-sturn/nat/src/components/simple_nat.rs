@@ -93,3 +93,7 @@ pub fn simple_nat(nat_params: NatParams) -> std::io::Result<()> {
     }
 }
 
+
+pub fn define_address_range() -> Result {
+    
+}

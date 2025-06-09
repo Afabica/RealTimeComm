@@ -51,9 +51,14 @@ impl From<u16> for StunAttributeType {
 #[derive(Debug, PartialEq)]
 pub enum StunMessageTypes {
     BINDING_REQUEST,
-    BINDING_SUCCESS,
-    BINDING_ERROR,
+    BINDING_SUCCESS_RESPONSE,
+    BINDING_ERROR_RESPONSE,
     BINDING_INDICATION,
+    SHARED_SECRET_REQUEST,
+    ALLOCATE_REQUST,
+    ALLOCATE_RESPONSE,
+    SEND_INDICATION,
+    DATA_INDICATION,
     UNKNOWN(u16),
 }
 
@@ -61,13 +66,19 @@ impl From<u16> for StunMessageTypes {
     fn from(value: u16) -> Self {
         match value {
             0x0001 => Self::BINDING_REQUEST,
-            0x0101 => Self::BINDING_SUCCESS,
-            0x0111 => Self::BINDING_ERROR,
+            0x0101 => Self::BINDING_SUCCESS_RESPONSE,
+            0x0111 => Self::BINDING_ERROR_RESPONSE,
             0x0011 => Self::BINDING_INDICATION,
+            0x0102 => Self::SHARED_SECRET_REQUEST,
+            0x0003 => Self::ALLOCATE_REQUST,
+            0x0103 => Self::ALLOCATE_RESPONSE,
+            0x0016 => Self::SEND_INDICATION,
+            0x0017 => Self::DATA_INDICATION,
             other => Self::UNKNOWN(other),
         }
     }
 }
+
 
 
 

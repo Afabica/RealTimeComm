@@ -1,19 +1,19 @@
-use std::intrinsics::atomic_cxchg_release_acquire;
 use std::net::{UdpSocket, TcpStream, SocketAddr, IpAddr, Ipv4Addr};
-use std::io::{Write, Read};
 use std::time::Duration;
+use std::io::{Write, Read};
+//use stun_client::StunClient;
+use stunclient::StunClient;
 use rand::Rng;
 use crate::components::stun1::{StunHeader, StunStats, StunMessage, StunServerConfig, StunAttribute, MessageParams};
-use crate::components::attributes::{ATTR_USERNAME, ATTR_MESSAGE_INTEGRITY, ATTR_FINGERPRINT};
+use crate::components::attributes::{ATTR_USERNAME, ATTR_MESSAGE_INTEGRITY, ATTR_FINGERPRINT, ATTR_SOFTWARE};
 
-use super::attributes::ATTR_SOFTWARE;
 
 pub fn tcp_connector(address: &str) -> std::io::Result<()> {
     let mut stream = TcpStream::connect(address)?;
     println!("Connected to server!");
 
     let msg = b"Hello TCP Server!";
-    stream.write_all(msg)?; 
+    stream.write_all(msg)?;
     println!("Sent message: {}", String::from_utf8_lossy(msg));
 
     let mut buffer = [0; 512];
@@ -23,10 +23,10 @@ pub fn tcp_connector(address: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn discover_public_ip() -> Option<std::net::SocketAddr> {
+pub fn discover_public_ip() -> Option<SocketAddr> {
     let stun_server = "127.0.0.1:19032";
     let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
-    let client = StunClient::new(stun_server);
+    let client = StunClient::new(stun_server.parse().expect("Unable to parse socket address"));
     client.query_external_address(&socket).ok()
 }
 
@@ -53,7 +53,7 @@ pub fn generate_transaction_id() -> [u8; 12] {
     id
 }
 
-pub fn build_binding_request(user: &String) -> StunMessage {
+pub fn build_binding_request(user: &str) -> StunMessage {
     StunMessage {
         header: StunHeader {
             MessageType: 0x0001,
@@ -61,16 +61,16 @@ pub fn build_binding_request(user: &String) -> StunMessage {
             MagicCookie: 0x2112A442,
             TransactionID: generate_transaction_id(),
         },
-        attributes: StunAttribute {
-            ATTR_Type: 0x0001,
-            Length: 0,
-            Value: user.to_string(),
-        },
+        attributes: vec![StunAttribute {
+            ATTR_Type: 0x0008,
+            Length: user.len() as u16,
+            Value: user.to_string().into_bytes(),
+        }],
         raw: Vec::new(),
     }
 }
 
-pub fn build_indication_request(user_identities: &MessageParams) -> StunMessage {
+pub fn build_indication_request(_user_identities: &MessageParams) -> StunMessage {
     StunMessage {
         header: StunHeader {
             MessageType: 0x0011,
@@ -85,69 +85,73 @@ pub fn build_indication_request(user_identities: &MessageParams) -> StunMessage 
 
 pub fn build_vec_of_attributes(user_identities: MessageParams) -> Vec<StunAttribute> {
     let mut attributes: Vec<StunAttribute> = Vec::new();
+
     match user_identities.MESS_TYPE {
-        0x0001 => {
-           attributes.push(StunAttribute {
-           ATTR_Type: ATTR_USERNAME,
-           Length: user_identities.USERNAME.to_string().len(),
-           Value: user_identities.USERNAME.to_string(),
-        });
-        attributes.push(StunAttribute {
-           ATTR_Type: ATTR_MESSAGE_INTEGRITY,
-           Length: user_identities.MESSAGE_INTEGRITY.to_string().len(),
-           Value: user_identities.MESSAGE_INTEGRITY.to_string(),
-        });
-        attributes.push(StunAttibute {
-           ATTR_Type: ATTR_SOFTWARE,
-           Length: user_identities.SOFTWARE.to_string().len(),
-           Value: user_identities.to_string(),
-        });
-        }
-        0x0011 => {
-            attributes.push(StunAttribute {
-                ATTR_Type: ATTR_SOFTWARE,
-                Length: user_identities.SOFTWARE.to_string().len(),
-                Value: user_identities.SOFTWARE.to_string(),
-            });
+        super::attributes::StunMessageTypes::BINDING_REQUEST => {
             attributes.push(StunAttribute {
                 ATTR_Type: ATTR_USERNAME,
-                Length: user_identities.USERNAME.to_string().len(),
-                Value: user_identities.USERNAME.to_string(),
+                Length: user_identities.USERNAME.len() as u16,
+                Value: user_identities.USERNAME.clone().into(),
             });
             attributes.push(StunAttribute {
                 ATTR_Type: ATTR_MESSAGE_INTEGRITY,
-                Length: user_identities.MESSAGE_INTEGRITY.to_string().len(),
-                Value: user_identities.MESSAGE_INTEGRITY.to_string(),
+                Length: user_identities.MESSAGE_INTEGRITY.len() as u16,
+                Value: user_identities.MESSAGE_INTEGRITY.clone().into(),
+            });
+            attributes.push(StunAttribute {
+                ATTR_Type: ATTR_SOFTWARE,
+                Length: user_identities.SOFTWARE.len() as u16,
+                Value: user_identities.SOFTWARE.clone().into(),
+            });
+        }
+        super::attributes::StunMessageTypes::BINDING_INDICATION => {
+            attributes.push(StunAttribute {
+                ATTR_Type: ATTR_SOFTWARE,
+                Length: user_identities.SOFTWARE.len() as u16,
+                Value: user_identities.SOFTWARE.clone().into(),
+            });
+            attributes.push(StunAttribute {
+                ATTR_Type: ATTR_USERNAME,
+                Length: user_identities.USERNAME.len() as u16,
+                Value: user_identities.USERNAME.clone().into(),
+            });
+            attributes.push(StunAttribute {
+                ATTR_Type: ATTR_MESSAGE_INTEGRITY,
+                Length: user_identities.MESSAGE_INTEGRITY.len() as u16,
+                Value: user_identities.MESSAGE_INTEGRITY.clone().into(),
             });
             attributes.push(StunAttribute {
                 ATTR_Type: ATTR_FINGERPRINT,
-                Length: user_identities.FINGERPRINT.to_string().len(),
-                Value: user_identities.MESSAGE_INTEGRITY.to_string(),
-            })
+                Length: user_identities.FINGERPRINT.len() as u16,
+                Value: user_identities.MESSAGE_INTEGRITY.clone().into(), // Verify if this is intentional
+            });
         }
-        _ => None,
-    } 
-    
-    
+        _ => {}
+    }
+
     attributes
 }
-
 
 pub fn parse_xor_mapped_address(attr: &StunAttribute) -> Option<SocketAddr> {
     if attr.Value.len() < 8 {
         return None;
     }
 
+    println!("Parsing attribute type: {}", attr.ATTR_Type);
+    println!("Raw bytes: {:?}", attr.Value);
+
     let family = attr.Value[1];
-    let port_xored = u16::from_be_bytes([attr.Value[2], attr.Value[3]]) ^ ((0x2112A442u32 >> 16) as u16);
+    let port_xored = u16::from_be_bytes([attr.Value[2], attr.Value[3]])
+        ^ ((0x2112A442u32 >> 16) as u16);
 
     match family {
-        0x01 => { // IPv4
+        0x01 => {
             let ip_bytes: Vec<u8> = attr.Value[4..8]
                 .iter()
                 .zip(&0x2112A442u32.to_be_bytes())
                 .map(|(b, m)| b ^ m)
                 .collect();
+
             Some(SocketAddr::new(
                 IpAddr::V4(Ipv4Addr::new(ip_bytes[0], ip_bytes[1], ip_bytes[2], ip_bytes[3])),
                 port_xored,
@@ -156,3 +160,4 @@ pub fn parse_xor_mapped_address(attr: &StunAttribute) -> Option<SocketAddr> {
         _ => None,
     }
 }
+

@@ -3,4 +3,4 @@ pub mod endpoints;
 pub mod encryption;
 pub mod models; 
 pub mod servers;
-pub mod stun;
+pub mod attributes;

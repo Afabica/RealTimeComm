@@ -8,3 +8,9 @@ tokio = {version = "1", features = ["full"]}
 byteorder = "1"
 stunclient = "0.4"
 rand = "0.8.5"
+
+
+[profile.dev]
+opt-level = 0
+debug = true
+strip = "none"

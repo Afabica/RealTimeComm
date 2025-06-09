@@ -21,3 +21,6 @@ pub mod clserver;
 
 #[path = "cl1server.rs"]
 pub mod cl1server;
+
+#[path = "clserver_entities.rs"]
+pub mod clserver_entities;

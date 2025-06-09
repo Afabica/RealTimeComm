@@ -11,9 +11,11 @@ fn main() -> std::io::Result<()> {
     socket.set_read_timeout(Some(Duration::from_secs(2)))?;
     let address_pub = discover_public_ip();
 
-    // Build STUN Binding Request message
     let transaction_id = generate_transaction_id();
-    let mut request_msg = build_binding_request(transaction_id);
+    let hex_string = transaction_id.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+ 
+    let mut request_msg =  build_binding_request(&hex_string);
+
     let request_bytes = request_msg.to_bytes();
 
     // Send request

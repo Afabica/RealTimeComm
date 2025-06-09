@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
 use bson::{oid::ObjectId, DateTime};
-use uuid::Uuid;
 use actix_web::{web, HttpResponse, Responder};
 use mongodb::{
     options::ClientOptions,
     Client, Collection,
 };
-use chrono::{Utc, DateTime};
+//use chrono::{Utc, DateTime};
 use crate::components::models::messages::Message;
 use crate::components::models::entry_reactions::MemberEntry;
 use uuid::Uuid;
@@ -35,21 +34,26 @@ impl ChatGroup {
             created_at: DateTime::now()
         }
     }
+
+    pub fn getMemberOfGroup(members: Vec<MemberEntry>) -> Self {
+
+    }
 }
 
-#[derive(Message)]
-#[rtype(result = "()")]
-struct ChatMessage(pub String);
 
-#[derive(Message)]
-#[rtype(usize)]
-struct Connect {
-    pub addr: Recipient<ChatMessage>,
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
-struct Disconnect {
-    pub id: usize,
-}
-
+//#[derive(Message)]
+//#[rtype(result = "()")]
+//struct ChatMessage(pub String);
+//
+//#[derive(Message)]
+//#[rtype(usize)]
+//struct Connect {
+//    pub addr: Recipient<ChatMessage>,
+//}
+//
+//#[derive(Message)]
+//#[rtype(result = "()")]
+//struct Disconnect {
+//    pub id: usize,
+//}
+//
