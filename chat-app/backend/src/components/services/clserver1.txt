@@ -1,0 +1,150 @@
+use actix::{Actor, Addr, AsyncContext, Handler, StreamHandler, ContextFutureSpawner};
+use actix_web_actors::ws;
+use actix_web::{HttpRequest, HttpResponse, Error, web, Responder};
+use std::time::{Duration, Instant};
+use crate::components::services::clserver_entities::{ChatServer, Connect, Disconnect, ClientMessage, WsMessage};
+use futures_util::future::{ready, Ready};
+use actix::{WrapFuture, ActorFutureExt, ActorContext};
+use crate::components::models::model_mongo::AppState;
+use uuid::Uuid;
+use url::form_urlencoded; 
+use actix::prelude::*;
+
+pub struct MyWs {
+    id: Uuid,
+    group: String,
+    addr: Addr<ChatServer>,
+}
+
+pub struct WsSession {
+    hb: Instant,
+    group: String,
+    server_addr: Addr<ChatServer>,
+}
+
+impl MyWs {
+    pub fn new(group: String, addr: Addr<ChatServer>) -> Self {
+        MyWs {
+            id: Uuid::new_v4(),
+            group,
+            addr,
+        }
+    }
+}
+
+impl Actor for MyWs {
+    type Context = ws::WebsocketContext<Self>;
+
+    fn stopped(&mut self, _: &mut Self::Context) {
+        self.addr.do_send(Disconnect {
+            id: self.id,
+            group: self.group.clone(),
+        });
+    }
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.addr.do_send(Connect {
+            id: self.id,
+            group: self.group.clone(),
+            addr: ctx.address().recipient(),
+        });
+    }
+}
+
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut ws::WebsocketContext<Self>) {
+        match msg {
+            Ok(ws::Message::Text(text)) => {
+                self.addr.do_send(ClientMessage {
+                    id: self.id,
+                    group: self.group.clone(),
+                    text: text.to_string(),
+                });
+            }
+            _ => {}
+        }
+    }
+}
+
+impl Handler<WsMessage> for MyWs {
+    type Result = ();
+
+    fn handle(&mut self, msg: WsMessage, ctx: &mut ws::WebsocketContext<Self>) {
+        ctx.text(msg.0);
+    }
+}
+
+impl WsSession {
+    pub fn new(group: String, server_addr: Addr<ChatServer>) -> Self {
+        Self {
+            hb: Instant::now(),
+            group, 
+            server_addr,
+        }
+    }
+
+    fn start_heartbeat(&self, ctx:&mut ws::WebsocketContext<Self>) {
+        ctx.run_interval(Duration::from_secs(5), |act, ctx| {
+            if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
+                println!("Client heartbeat failed. Disconnecting.");
+                ctx.stop();
+                return;
+            }
+            ctx.ping(b"PING");
+        });
+    }
+}
+
+
+//pub async fn ws_index(
+//    req: HttpRequest,
+//    stream: web::Payload,
+//    srv: web::Data<Addr<ChatServer>>,
+//) -> Result<HttpResponse, Error> {
+//    ws::start(MyWs::new(srv.get_ref().clone()), &req, stream)
+//}
+
+//pub async fn ws_index(
+//    req: HttpRequest,
+//    stream: web::Payload,
+//    srv: web::Data<AppState>,) -> Result<HttpResponse, Error> {
+//    let chat_server = srv.chat_server.clone();
+//    ws::start(MyWs::new(chat_server), &req, stream)
+//}
+
+//pub async fn ws_index(req: HttpRequest, stream: web::Payload, data: web::Data<AppState>,) -> impl Responder {
+//    let group = req.query_string().to_string();
+//
+//    ws::start(MyWs::new(group, data.chat_server.clone()), &req, stream)
+//}
+
+//pub async fn ws_index(
+//    req: HttpRequest,
+//    steram: web::Payload,
+//    data: web::Data<AppState>,
+//) -> impl actix_web::Responder {
+//    let query = req.query_string();
+//    let group = form_urlencoded::parse(query.as_bytes())
+//        .find(|(k, _)| k == "group")
+//        .map(|(_, v)| v.to_string())
+//        .unwrap_or_else(|| "default".to_string());
+//
+//    ws::start(MyWs::new(group.clone(), data.chat_server.clone()), &req, steram)
+//
+//}
+pub async fn ws_index(
+    req: HttpRequest,
+    stream: web::Payload,
+    data: web::Data<AppState>,
+) -> impl actix_web::Responder {
+    let query = req.uri().query().unwrap_or("");
+    let group = query
+        .split('&')
+        .find_map(|s| s.strip_prefix("group="))
+        .unrap_or("default")
+        .to_string();
+
+    let session = WsSession::new(group, srv.get_ref().clone());
+     
+    ws::start(session, &req, stream)
+}
