@@ -1,12 +1,11 @@
 use std::net::{UdpSocket, TcpStream, SocketAddr, IpAddr, Ipv4Addr};
 use std::time::Duration;
 use std::io::{Write, Read};
-//use stun_client::StunClient;
 use stunclient::StunClient;
 use rand::Rng;
-use crate::components::stun1::{StunHeader, StunStats, StunMessage, StunServerConfig, StunAttribute, MessageParams};
-use crate::components::attributes::{ATTR_USERNAME, ATTR_MESSAGE_INTEGRITY, ATTR_FINGERPRINT, ATTR_SOFTWARE};
 
+use crate::components::stun1::{StunHeader, StunMessage, StunAttribute};
+use crate::components::attributes::{ATTR_USERNAME, ATTR_MESSAGE_INTEGRITY, ATTR_FINGERPRINT, ATTR_SOFTWARE};
 
 pub fn tcp_connector(address: &str) -> std::io::Result<()> {
     let mut stream = TcpStream::connect(address)?;
@@ -31,20 +30,28 @@ pub fn discover_public_ip() -> Option<SocketAddr> {
 }
 
 pub fn udp_connector() -> std::io::Result<()> {
+    let stun_server = "127.0.0.1:8080";
     let socket = UdpSocket::bind("0.0.0.0:0")?;
-    let server_addr = "127.0.0.1:8080";
+    
+    loop {
+        let mut request = build_binding_request();
+        socket.send_to(&request.to_bytes(), stun_server)?;
+        println!("Sent STUN Binding Request");
 
-    let msg = b"Hello UDP server!";
-    socket.send_to(msg, server_addr)?;
-    println!("Sent: {}", String::from_utf8_lossy(msg));
+        let mut buf = [0u8; 1024];
+        match socket.recv_from(&mut buf) {
+            Ok((size, src)) => {
+                println!("Received {} bytes from {}", size, src);
+            }
+            Err(e) => {
+                println!("No response: {}", e);
+            }
+        }
 
-    let mut buf = [0u8; 1024];
-    let (amt, src) = socket.recv_from(&mut buf)?;
-    let received = String::from_utf8_lossy(&buf[..amt]);
-
-    println!("Received from {}: {}", src, received);
-    Ok(())
+        std::thread::sleep(Duration::from_secs(5));
+    }
 }
+
 
 pub fn generate_transaction_id() -> [u8; 12] {
     let mut rng = rand::thread_rng();
@@ -53,100 +60,63 @@ pub fn generate_transaction_id() -> [u8; 12] {
     id
 }
 
-pub fn build_binding_request(user: &str) -> StunMessage {
+pub fn build_binding_request() -> StunMessage {
     StunMessage {
         header: StunHeader {
-            MessageType: 0x0001,
-            MessageLength: 0,
-            MagicCookie: 0x2112A442,
-            TransactionID: generate_transaction_id(),
-        },
-        attributes: vec![StunAttribute {
-            ATTR_Type: 0x0008,
-            Length: user.len() as u16,
-            Value: user.to_string().into_bytes(),
-        }],
-        raw: Vec::new(),
-    }
-}
-
-pub fn build_indication_request(_user_identities: &MessageParams) -> StunMessage {
-    StunMessage {
-        header: StunHeader {
-            MessageType: 0x0011,
-            MessageLength: 0,
-            MagicCookie: 0x2112A442,
-            TransactionID: generate_transaction_id(),
+            message_type: 0x0001,
+            message_length: 0,
+            magic_cookie: 0x2112A442,
+            transaction_id: generate_transaction_id(),
         },
         attributes: Vec::new(),
         raw: Vec::new(),
     }
 }
 
-pub fn build_vec_of_attributes(user_identities: MessageParams) -> Vec<StunAttribute> {
-    let mut attributes: Vec<StunAttribute> = Vec::new();
+pub fn build_request() -> StunMessage {
+    let stun_package: StunMessage = StunMessage {
+        header: StunHeader {
+            message_type: 0x0000,
+            message_length: 0,
+            magic_cookie: 0,
+            transaction_id: generate_transaction_id()
+        },
+        attributes: Vec::new(),
+        raw: Vec::new(),
+    };
 
-    match user_identities.MESS_TYPE {
-        super::attributes::StunMessageTypes::BINDING_REQUEST => {
-            attributes.push(StunAttribute {
-                ATTR_Type: ATTR_USERNAME,
-                Length: user_identities.USERNAME.len() as u16,
-                Value: user_identities.USERNAME.clone().into(),
-            });
-            attributes.push(StunAttribute {
-                ATTR_Type: ATTR_MESSAGE_INTEGRITY,
-                Length: user_identities.MESSAGE_INTEGRITY.len() as u16,
-                Value: user_identities.MESSAGE_INTEGRITY.clone().into(),
-            });
-            attributes.push(StunAttribute {
-                ATTR_Type: ATTR_SOFTWARE,
-                Length: user_identities.SOFTWARE.len() as u16,
-                Value: user_identities.SOFTWARE.clone().into(),
-            });
-        }
-        super::attributes::StunMessageTypes::BINDING_INDICATION => {
-            attributes.push(StunAttribute {
-                ATTR_Type: ATTR_SOFTWARE,
-                Length: user_identities.SOFTWARE.len() as u16,
-                Value: user_identities.SOFTWARE.clone().into(),
-            });
-            attributes.push(StunAttribute {
-                ATTR_Type: ATTR_USERNAME,
-                Length: user_identities.USERNAME.len() as u16,
-                Value: user_identities.USERNAME.clone().into(),
-            });
-            attributes.push(StunAttribute {
-                ATTR_Type: ATTR_MESSAGE_INTEGRITY,
-                Length: user_identities.MESSAGE_INTEGRITY.len() as u16,
-                Value: user_identities.MESSAGE_INTEGRITY.clone().into(),
-            });
-            attributes.push(StunAttribute {
-                ATTR_Type: ATTR_FINGERPRINT,
-                Length: user_identities.FINGERPRINT.len() as u16,
-                Value: user_identities.MESSAGE_INTEGRITY.clone().into(), // Verify if this is intentional
-            });
-        }
-        _ => {}
-    }
+    
 
-    attributes
+    stun_package
 }
+//pub fn build_indication_request(_user_identities: &MessageParams) -> StunMessage {
+//    StunMessage {
+//        header: StunHeader {
+//            message_type: 0x0011,
+//            message_length: 0,
+//            magic_cookie: 0x2112A442,
+//            transaction_id: generate_transaction_id(),
+//        },
+//        attributes: Vec::new(),
+//        raw: Vec::new(),
+//    }
+//}
 
 pub fn parse_xor_mapped_address(attr: &StunAttribute) -> Option<SocketAddr> {
-    if attr.Value.len() < 8 {
+    if attr.value.len() < 8 {
         return None;
     }
 
-    println!("Parsing attribute type: {}", attr.ATTR_Type);
-    println!("Raw bytes: {:?}", attr.Value);
+    println!("Parsing attribute type: {}", attr.attr_type);
+    println!("Raw bytes: {:?}", attr.value);
 
-    let family = attr.Value[1];
-    let port_xored = u16::from_be_bytes([attr.Value[2], attr.Value[3]])
+    let family = attr.value[1];
+    let port_xored = u16::from_be_bytes([attr.value[2], attr.value[3]])
         ^ ((0x2112A442u32 >> 16) as u16);
 
     match family {
         0x01 => {
-            let ip_bytes: Vec<u8> = attr.Value[4..8]
+            let ip_bytes: Vec<u8> = attr.value[4..8]
                 .iter()
                 .zip(&0x2112A442u32.to_be_bytes())
                 .map(|(b, m)| b ^ m)
@@ -159,5 +129,57 @@ pub fn parse_xor_mapped_address(attr: &StunAttribute) -> Option<SocketAddr> {
         }
         _ => None,
     }
+}
+
+pub fn parse_stun_header(buf: &[u8]) -> Option<StunHeader> {
+    if buf.len() < 20 {
+        return None;
+    }
+
+    let message_type = u16::from_be_bytes([buf[0], buf[1]]);
+    let message_length = u16::from_be_bytes([buf[2], buf[3]]);
+    let magic_cookie = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
+
+    if magic_cookie != 0x2112A442 {
+        return None;
+    }
+
+    let mut transaction_id = [0u8; 12];
+    transaction_id.copy_from_slice(&buf[8..20]);
+
+    Some(StunHeader {
+        message_type,
+        message_length,
+        magic_cookie,
+        transaction_id,
+    })
+}
+
+pub fn parse_stun_attributes(buf: &[u8]) -> Vec<StunAttribute> {
+    let mut attrs = Vec::new();
+    let mut pos = 0;
+
+    while pos + 4 <= buf.len() {
+        let attr_type = u16::from_be_bytes([buf[pos], buf[pos + 1]]);
+        let attr_len = u16::from_be_bytes([buf[pos + 2], buf[pos + 3]]) as usize;
+        pos += 4;
+
+        if pos + attr_len > buf.len() {
+            break;
+        }
+
+        let attr_value = &buf[pos..pos + attr_len];
+        pos += attr_len;
+
+        let padding = (4 - (attr_len % 4)) % 4;
+        pos += padding;
+
+        attrs.push(StunAttribute {
+            attr_type,
+            value: attr_value.to_vec(),
+            length: attr_len as u16,
+        });
+    }
+    attrs
 }
 

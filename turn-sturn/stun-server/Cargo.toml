@@ -9,3 +9,4 @@ tokio = {version = "1", featues = ["full"]}
 byteorder = "1"
 rand = "0.8.5"
 stunclient = "0.4"
+url = "2"

@@ -546,6 +546,7 @@ dependencies = [
  "tokio-tungstenite 0.18.0",
  "tower-http",
  "tungstenite 0.20.1",
+ "url",
  "uuid 0.8.2",
  "x25519-dalek",
 ]

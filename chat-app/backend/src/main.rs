@@ -1,17 +1,15 @@
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger};
-use sqlx::postgres::PgPoolOptions;
 mod components;
 use components::services::database::{iterate_mongodb_collection, iterate_postgres_collection, connect_to_mongodb, connect_to_postgres, check_mongo_connection, ping};
-//use components::servers::http_server::create_http_server;
 use components::services::database::{simple_authentication, simple_registration, get_specific_user_information}; 
 use components::services::clserver::ws_index;
 use components::services::p2p::chat_route;
 use components::models::model_mongo::{AppState, AppSettings};
 use components::services::clserver_entities::ChatServer;
+use rocket::yansi::Paint;
 use actix::Actor;
 use dotenvy::dotenv;
 use std::env;
-use tokio::task;
 use tokio::task::LocalSet;
 
 #[tokio::main]

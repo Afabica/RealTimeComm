@@ -1,159 +1,220 @@
-//// Parsing and encoding STUN messages  
-//use std::net::{UdpSocket, SockerAddr};
-//use std::time::{SystemTime};
-//use crate::components::attributes::{StunMessageTypes, StunAttributeType};
-//use hmac::{Hmac, Mac};
-//use sha1::Sha1;
+//use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 //use std::collections::HashMap;
+//use std::sync::atomic::AtomicU64;
+//use std::io::{Cursor, Write};
+//use byteorder::{BigEndian, WriteBytesExt};
 //
-//type HmacSha1 = Hmac<Sha1>;
-////use crate::components::utils::
-//
-//const MAGIC_COOKIE: u32 = 0x2112A442;
-//
-//#[derive(Debug)]
+//#[derive(Debug, Clone)]
 //pub struct StunHeader {
-//    pub msg_type: u16,
-//    pub length: u16,
-//    pub magic_cookie: u32,
-//    pub transaction_id: [u8; 12],
+//    pub MessageType: u16,
+//    pub MessageLength: u16,
+//    pub MagicCookie: u32,
+//    pub TransactionID: [u8; 12],
 //}
 //
 //impl StunHeader {
 //    pub fn parse(buf: &[u8]) -> Option<Self> {
 //        if buf.len() < 20 { return None; }
 //        Some(Self {
-//            msg_type: u16::from_be_bytes([buf[0], buf[1]]),
-//            length: u16::from_be_bytes([buf[2], buf[3]]),
-//            magic_cookie: u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]),
-//            transaction_id: buf[8..20].try_into().ok()?,
+//            MessageType: u16::from_be_bytes([buf[0],buf[1]]),
+//            MessageLength: u16::from_be_bytes([buf[2], buf[3]]),
+//            MagicCookie: u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]),
+//            TransactionID: buf[8..20].try_into().ok()?,
+//        })
+//    }
+//
+//}
+//
+//#[derive(Debug)]
+//pub enum StunParseError {
+//    BufferTooShort,
+//    InvalidLength,
+//}
+//
+//#[derive(Debug, Clone)]
+//pub struct StunAttribute {
+//    pub ATTR_Type: u16,
+//    pub Length: u16,
+//    pub Value: Vec<u8>,
+//}
+//
+//impl StunAttribute {
+//    pub fn parse(mut bytes: &[u8]) -> StunAttribute {
+//        let mut attrs = Vec::new();
+//
+//    while !bytes.is_empty() {
+//        if bytes.len() < 4 {
+//            return Err("Not enough bytes for attribute header".to_string());
+//        }
+//
+//        let attr_type = u16::from_be_bytes([bytes[0], bytes[1]]);
+//        let length = u16::from_be_bytes([bytes[2], bytes[3]]);
+//
+//        bytes = &bytes[4..];
+//
+//        if bytes.len() < length as usize {
+//            return Err("Not enough bytes for attribute value".to_string());
+//        }
+//
+//        let value = bytes[..length as usize].to_vec();
+//
+//        attrs.push(StunAttribute {
+//            ATTR_Type: attr_type,
+//            Length: length,
+//            Value: value,
+//        });
+//
+//        bytes = &bytes[length as usize..];
+//
+//        let padding = (4 - (length as usize % 4)) % 4;
+//
+//        if bytes.len() < padding {
+//            return Err("Not enough bytes for padding".to_string());
+//        }
+//
+//        bytes = &bytes[padding..];
+//    }
+//
+//    Ok(attrs)
+//    }
+//}
+//
+//#[derive(Debug, Clone)]
+//pub struct StunMessage {
+//    pub header: StunHeader,
+//    pub attributes: Vec<StunAttribute>,
+//    pub raw: Vec<u8>,
+//}
+//
+//impl StunMessage {
+//    pub fn to_bytes(&mut self) -> &[u8] {
+//        let mut buf = Cursor::new(Vec::new());
+//
+//        // Write header
+//        buf.write_u16::<byteorder::BigEndian>(self.header.MessageType).unwrap();
+//        buf.write_u16::<byteorder::BigEndian>(0).unwrap(); // Placeholder for length
+//        buf.write_u32::<byteorder::BigEndian>(self.header.MagicCookie).unwrap();
+//        buf.write_all(&self.header.TransactionID).unwrap();
+//
+//        // Write attributes
+//        for attr in &self.attributes {
+//            buf.write_u16::<byteorder::BigEndian>(attr.ATTR_Type).unwrap();
+//            buf.write_u16::<byteorder::BigEndian>(attr.Length).unwrap();
+//            buf.write_all(&attr.Value).unwrap();
+//
+//            // Pad to 4-byte boundary
+//            let pad = (4 - (attr.Length as usize % 4)) % 4;
+//            buf.write_all(&vec![0u8; pad]).unwrap();
+//        }
+//        
+//        let final_buf = buf.into_inner();
+//        let attr_len = (final_buf.len() - 20) as u16;
+//
+//        let mut final_buf = final_buf;
+//        final_buf[2..4].copy_from_slice(&attr_len.to_be_bytes());
+//
+//        self.header.MessageLength = attr_len;
+//        self.raw = final_buf;
+//        &self.raw
+//    }
+//
+//    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+//        if bytes.len() < 20 {
+//            return Err("Invalid STUN message".to_string());
+//        }
+//
+//        let header = StunHeader::parse(&bytes[0..20]);
+//        let mut attributes = Vec::new();
+//
+//        let mut offset = 20;
+//        while offset < bytes.len() {
+//            let attr = StunAttribute::parse(&bytes[offset..])?;
+//            offset += attr.len();
+//            attributes.push(attr);
+//        } 
+//        
+//        Ok(Self {
+//            header,
+//            attributes,
+//            raw: bytes.to_vec(),
 //        })
 //    }
 //}
 //
+//#[derive(Debug, Clone)]
+//pub enum XorMappedAddress {
+//    V4 {
+//        family: u8,
+//        port: u16,
+//        ip: Ipv4Addr,
+//    },
+//    V6{
+//        family: u8,
+//        port: u16,
+//        ip: Ipv6Addr,
+//    }
+//}
+//
+//#[derive(Debug, Clone)]
+//pub enum ResponseHandling {
+//    SuccResponse {
+//        transaction_id: [u8; 12],
+//        mapped_address: SocketAddr,
+//        message_integrity: Option<[u8; 20]>,
+//        fingerprint: Option<u32>,
+//    },
+//    ErrorResponse {
+//        transaction_id: [u8; 12],
+//        error_code: u16,
+//        reason: String,
+//        unknown_attributes: Option<Vec<u16>>,
+//        realm: Option<String>,
+//        nonce: Option<String>,
+//    }
+//}
+//
+//#[derive(Debug, Clone)]
+//pub struct MessageIntegrity {
+//    pub hmac: [u8; 20],
+//}
+//
+//#[derive(Debug, Clone)]
+//pub struct Fingerprint {
+//    pub crc32: u32,
+//}
+//
 //#[derive(Debug)]
-//pub struct StunAttributes {
-//
+//pub struct ParsedRequestContext {
+//    pub source_addr: SocketAddr,
+//    pub stun_message: StunMessage,
+//    pub username: Option<String>,
+//    pub us_authenticated: bool,
+//    pub integrity_valid: bool,
 //}
 //
-//struct AuthAttributes<'a> {
-//    username: Option<&'a str>,
-//    realm: Option<&'a str>,
-//    nonce: Option<&'a str>,
-//    message_integrity: Option<&'a [u8]>,
-//    raw_message: &'a [u8],
+//pub struct StunServerConfig {
+//    pub listen_ip: String,
+//    pub port: u16,
+//    pub users: HashMap<String, String>,
+//    pub realm: Option<String>,
+//    pub enable_auth: bool,
+//    pub enable_tls: bool,
 //}
 //
-///// Simple in-memory user database: username -> Password 
-//type UserDB = HashMap<String, String>;
-//
-//pub fn encode_xor_mapped_address(addr: &SocketAddr, transaction_id: &[u8; 12]) -> Vec<u8> {
-//    let mut attr = vec![0x00, 0x20, 0x00, 0x08]; // Type and length
-//    attr.push(0); // Reserverd
-//    match addr {
-//        SockerAddr::V4(ipv4) => {
-//            attr.push(0x01);
-//            let port = ipv4.port() ^ ((MAGIC_COOKIE >> 16) as u16);
-//            attr.extend_from_slice(&port.to_be_bytes());
-//            let ip_bytes = ipv4.ip().octets();
-//            let cookie_bytes = MAGIC_COOKIE.to_be_bytes();
-//            for i in 0..4 {
-//                attr.push(ip_bytes[i] ^ cookie_bytes[i]);
-//            }
-//        },
-//        _ => unimplemented!()
-//    }
-//    attr
+//pub struct StunStats {
+//    pub total_requests: AtomicU64,
+//    pub successful_responses: AtomicU64,
+//    pub auth_failures: AtomicU64,
+//    pub malformed_packets: AtomicU64,
 //}
 //
-//pub fn start_stun_server() {
-//    let socket = UdpSocket::bind("0.0.0.0:3478").expect("Could not bind");
-//    let mut buf = [0u8, 1024];
-//    println!("STUN server listening on port 3478");
-//
-//    loop {
-//        if let OK((len, src)) = socker.recv_from(&mut buf) {
-//            if let Some(header) = StunHeader::parse(&buf[..len]) {
-//                println!("Received STUN message from {:?}: {:?}", src, header);
-//
-//                if header.msg_type == BINDING_REQUEST {
-//                    let mut response =  vec![];
-//                    response.extend_from_Slice(&BINDING_SUCCESS_RESPONSE.to_be_bytes());
-//                    response.extend_from_slice(&[0x00, 0x0C]); // Length 
-//                    response.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
-//                    response.extend_from_slice(&header.transaction_id);
-//
-//                    let xor_attr = encode_xor_mapped_address(&src, &header.transaction_id); 
-//                    response.ectend_from_slice(&xor_attr);
-//                    socket.send_to(&response, src).unwrap();
-//                }
-//            }
-//        }
-//    }
-//}
-//
-//pub fn compute_mesage_integrity(key: &[u8], message: &[u8]) -> Vec<u8> {
-//    let mut mac = HmacSha1::new_from_slice(key).unwrap();
-//    mac.update(message);
-//    mac.finalize().into_bytes().to_vec()
-//}
-//
-//pub handle_binding_request(header: &StunHeader, src: SocketAddr) -> Vec<u8> {
-//    let mut response: Vec<u8> = Vec::new();
-//    response.extend_from_slice(&BINDING_SUCESS_RESPONSE.to_by_bytes());
-//    response.extend_from_slice(&MAGIC_COOKIE.to_by_bytes());
-//    response.extend_from_slice(&StunAttributeType::ATTR_XOR_MAPPED_ADDRESS.to_by_bytes());
-//    response.extend_from_slice(header::transaction_id);
-//    response.extend_from_slice(header::length);
-//
-//    response
-//}
-//
-//pub fn validate_stun_auth(attrs: &AuthAttributes, user_db: &UserDb) -> bool {
-//    let username = match attrs.username {
-//        Some(u) => u,
-//        None => return false, 
-//    };
-//    let realm = match attrs.realm {
-//        Some(r) => r,
-//        None => return false, 
-//    };
-//    let nonce = match attrs.nonce {
-//        Some(n) => n,
-//        None => return false,
-//    };
-//    let received_hmac = match attrs.message_integrity {
-//        Some(h) => h,
-//        None => return false,
-//    };
-//    let password = match user_db.get(username) {
-//        Some(p) => p,
-//        None => return false,
-//    };
-//    
-//    let key_string = format!("{}:{}:{}", username, realm, password);
-//    let key = key_string.as_bytes();
-//
-//    let mut mac = HmacSha1::new_from_slice(key).expect("HMAC can take key of any size");
-//    mac.update(attrs.raw_message);
-//    let expected_hmac = mac.finalize().into_bytes();
-//
-//    subtle::ConstantTimeEq::constant_time_eq(received_hmac, &expected_hmac)
-//}
-//
-//
-//
-//pub fn stun_server() -> std::io::Result<()> {
-//    let socket = UdpSocket::bind("0.0.0.0:3478")?;
-//    let mut buf = [0u8;1500];
-//
-//    loop {
-//        let (len, src) = socket.recv_from(&mut buf)?;
-//        if let Some(header) = parse_stun_header(&buf[..len]) {
-//            if header.msg_type == BINDING_REQUEST {
-//                let response= handle_binding_request (&header, src);
-//                socket.send_to(&response, src)?;
-//            }
+//impl StunStats {
+//    pub fn new() -> Self {
+//        Self {
+//            total_requests: AtomicU64::new(0),
+//            successful_responses: AtomicU64::new(0),
+//            auth_failures: AtomicU64::new(0),
+//            malformed_packets: AtomicU64::new(0),
 //        }
 //    }
 //}

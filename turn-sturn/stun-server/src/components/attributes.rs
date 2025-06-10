@@ -26,6 +26,8 @@ pub enum StunAttributeType {
     ATTR_SOFTWARE,
     ATTR_ALTERNATE_SERVER,
     ATTR_FINGERPRINT,
+    ATTR_PRIORITY,
+    ATTR_ICE_CONTROLLING,
     UNKNOWN(u16), // <- Add a catch-all variant
 }
 
@@ -43,6 +45,8 @@ impl From<u16> for StunAttributeType {
             0x822 => Self::ATTR_SOFTWARE,
             0x8023 => Self::ATTR_ALTERNATE_SERVER,
             0x8028 => Self::ATTR_FINGERPRINT,
+            0x0024 => Self::ATTR_PRIORITY,
+            0x902A => Self::ATTR_ICE_CONTROLLING,
             other => Self::UNKNOWN(other),
         }
     }
@@ -68,6 +72,25 @@ impl From<u16> for StunMessageTypes {
         }
     }
 }
+
+#[derive(Debug, PartialEq)]
+pub enum StunAuthentication {
+    ShortTermCredentials,
+    LongTermCredentials,
+    UNKNOWN(u16),
+}
+
+impl From<u16> for StunAuthentication {
+    fn from(value: u16) -> Self {
+        match value {
+            0x9001 => Self::ShortTermCredentials,
+            0x9002 => Self::LongTermCredentials,
+            other => Self::UNKNOWN(other),
+        }
+    }
+}
+
+
 
 
 

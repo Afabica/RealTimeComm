@@ -68,15 +68,15 @@ impl UserData {
         }
     }
 
-    pub async fn fetch_current_group(id: Uuid, mongo_client: Arc<Mutex<Client>>) -> Result<Option<ChatGroup>, mongodb::error::Error> {
-        let client = mongo_client.lock().await;
-        let db = client.database("chatapp");
-        let collection: Collection<ChatGroup> = db.collection("groups"); 
-        
-        let filter = doc! { "_id": id };
-        let chat_group = collection.find_one(filter, None).await?;
-        
-        Ok(chat_group)
-    }
+//    pub async fn fetch_current_group(id: Uuid, mongo_client: Arc<Mutex<Client>>) -> Result<Option<ChatGroup>, mongodb::error::Error> {
+//        let client = mongo_client.lock().await;
+//        let db = client.database("chatapp");
+//        let collection: Collection<ChatGroup> = db.collection("groups"); 
+//        
+//        let filter = doc! { "_id": id };
+//        let chat_group = collection.find_one(filter, None).await?;
+//        
+//        Ok(chat_group)
+//    }
 }
 

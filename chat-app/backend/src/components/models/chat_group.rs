@@ -35,9 +35,9 @@ impl ChatGroup {
         }
     }
 
-    pub fn getMemberOfGroup(members: Vec<MemberEntry>) -> Self {
-
-    }
+//    pub fn getMemberOfGroup(members: Vec<MemberEntry>) -> Self {
+//
+//    }
 }
 
 
