@@ -6,11 +6,16 @@ edition = "2021"
 [dependencies]
 # --- Web Frameworks --- 
 actix = "0.13"
-actix-web-actors = "4"
+## actix-web-actors = "4" - deprecated
+actix-ws = "0.3.0"
 actix-web = "4"    # For REST API (you used Actix)
 actix-rt = "2.5.4"
 actix-identity =  "0.4"
 actix-service = "2.0.2"
+
+# -- WebRTC
+webrtc = "0.8"
+warp = "0.3"
 
 rocket = { version = "0.5", features = ["json"] }  # Optional JSON endpoint handling
 axum = { version = "0.6", features = ["ws"] }      # Optional if you're using Axum too
@@ -25,7 +30,6 @@ url = "2"
 futures-util = "0.3"
 
 # --- Environment Variables ---
-#dotenv = "0.14.1"
 dotenvy = "0.15"
 
 # --- Logging ---

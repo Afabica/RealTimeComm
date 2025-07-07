@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
-
+use std::time::{Duration, Instant};
 use crate::components::entities::*;
 
 pub fn simple_nat(nat_params: NatParams) -> std::io::Result<()> {
@@ -97,3 +97,6 @@ pub fn simple_nat(nat_params: NatParams) -> std::io::Result<()> {
 pub fn define_address_range() -> Result {
     
 }
+
+
+

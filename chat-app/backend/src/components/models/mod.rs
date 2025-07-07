@@ -28,4 +28,6 @@ pub mod stun;
 #[path = "server_response.rs"]
 pub mod server_response;
 
+#[path = "user_profile.rs"]
+pub mod user_profile;
 

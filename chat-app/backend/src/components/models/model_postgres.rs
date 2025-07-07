@@ -1,4 +1,5 @@
 use sqlx::{PgPool, query, FromRow, Row, postgres::PgPoolOptions};
+
 use tokio::sync::Mutex;
 use sqlx::types::Uuid;
 use sqlx::query_as;
@@ -12,7 +13,8 @@ use chrono::{Utc, DateTime};
 pub struct Token {
     pub sub: String, 
     pub exp: usize,
-    pub roles: Vec<String>,
+    pub roles: Option<Vec<String>>,
+
 }   
 
 impl Token {
@@ -20,7 +22,7 @@ impl Token {
         Self {
             sub: sub.to_string(),
             exp: exp as usize,
-            roles: roles.to_vec(),
+            roles: Some(roles.to_vec()),
         }
     }
 }

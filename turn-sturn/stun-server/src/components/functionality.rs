@@ -141,15 +141,19 @@ pub fn build_stun_packet(msg_type: StunHeader, attributes: Vec<StunAttribute>) -
 }
 
 pub fn constructing_response(header: &StunHeader, client_addr: SocketAddr) -> StunMessage { 
-    // Build XOR-MAPPED-ADDRESS attribute
     let xor_mapped_value = build_xor_mapped_address(client_addr, &header.transaction_id);
-
+ 
+    let header_bytes = header.as_bytes();
+    let parsed_header = parse_stun_header();
     let attr = StunAttribute {
         attr_type: 0x0020, // XOR-MAPPED-ADDRESS type
         length: xor_mapped_value.len() as u16,
         value: xor_mapped_value,
     };
 
+    match
+
+    
     StunMessage {
         header: StunHeader {
             message_type: 0x0101, // Binding Success Response
@@ -258,4 +262,5 @@ pub fn parse_xor_mapped_address(attr: &StunAttribute) -> Option<SocketAddr> {
         _ => None,
     }
 }
+
 

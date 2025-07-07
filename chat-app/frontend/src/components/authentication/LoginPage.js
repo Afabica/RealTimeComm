@@ -1,107 +1,160 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import axios from "axios";
-import Link from "next/link";
+import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import clsx from "clsx";
 
-export default function Login() {
-  const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+export default function AuthPage() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: "",
+  });
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-
-    try {
-      // Send login request to your backend API endpoint.
-      const response = await axios.post("http://127.0.0.1:8080/login", {
-        username,
-        password,
-      });
-
-      if (response.status === 200) {
-        // Optionally save the returned token.
-        localStorage.setItem("token", response.data.token);
-        // Redirect to the chat page or home dashboard.
-        router.push("/chat");
-      } else {
-        setError("Login failed. Please check your credentials.");
-      }
-    } catch (err) {
-      console.error("Login error:", err);
-      setError("Login failed. Please check your credentials.");
-    }
+  const formVariants = {
+    hidden: { opacity: 0, y: 40 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { type: "spring", stiffness: 100, damping: 12 },
+    },
   };
 
+  const handleChange = async (e) => {
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
+  };
+
+  useEffect(() => {
+    setFormData({
+      username: "",
+      email: "",
+      password: "",
+    });
+  }, [isLogin]);
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center bg-gray-100">
-      <h1 className="text-4xl font-bold mb-8 text-gray-800">
-        Welcome to ChatApp
-      </h1>
-      <form
-        onSubmit={handleLogin}
-        className="w-full max-w-sm bg-white p-8 rounded shadow-md"
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center relative overflow-hidden">
+      {/* Chat bubbles animation background */}
+      <div className="absolute w-full h-full overflow-hidden z-0">
+        <motion.div
+          animate={{ y: [-10, 10, -10] }}
+          transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
+          className="absolute left-10 top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"
+        />
+        <motion.div
+          animate={{ x: [-15, 15, -15] }}
+          transition={{ repeat: Infinity, duration: 7, ease: "easeInOut" }}
+          className="absolute right-10 bottom-10 w-60 h-60 bg-white/5 rounded-full blur-2xl"
+        />
+      </div>
+
+      {/* Auth card */}
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={formVariants}
+        className="z-10 bg-white/10 border border-white/20 backdrop-blur-md text-white p-8 rounded-2xl shadow-2xl w-full max-w-md"
       >
-        {error && <p className="mb-4 text-center text-red-500">{error}</p>}
-        <div className="mb-6">
-          <label
-            htmlFor="username"
-            className="block text-gray-700 font-semibold mb-2"
+        <h2 className="text-3xl font-semibold mb-6 text-center">
+          {isLogin ? "Welcome Back 👋" : "Join the Chat 💬"}
+        </h2>
+
+        <form className="space-y-4">
+          {!isLogin && (
+            <motion.div variants={formVariants}>
+              <input
+                type="text"
+                name="username" // ← Add this
+                placeholder="Username"
+                value={formData.username}
+                onChange={handleChange}
+                className="w-full p-3 bg-white/20 rounded-lg placeholder-white/60 focus:outline-none"
+                required
+              />
+            </motion.div>
+          )}
+
+          <motion.div variants={formVariants}>
+            <input
+              type="email"
+              name="email" // ← Add this
+              placeholder="Email"
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full p-3 bg-white/20 rounded-lg placeholder-white/60 focus:outline-none"
+              required
+            />
+          </motion.div>
+
+          <motion.div variants={formVariants}>
+            <input
+              type="password"
+              name="password" // ← Add this
+              placeholder="Password"
+              onChange={handleChange}
+              value={formData.password}
+              className="w-full p-3 bg-white/20 rounded-lg placeholder-white/60 focus:outline-none"
+              required
+            />
+          </motion.div>
+
+          {/* Chat-like loading dots (optional) */}
+          {isLogin ? (
+            <motion.div
+              className="flex justify-center mt-6"
+              onChange={handleChange}
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              <span className="text-sm text-white/70">🔐 Authenticating</span>
+            </motion.div>
+          ) : (
+            <motion.div
+              className="flex justify-center mt-6"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              <span className="text-sm text-white/70">Registration</span>
+            </motion.div>
+          )}
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 transition text-white p-3 rounded-lg font-medium mt-4"
           >
-            Username
-          </label>
-          <input
-            id="username"
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring focus:ring-blue-300"
-          />
+            {isLogin ? "Login" : "Sign Up"}
+          </motion.button>
+        </form>
+
+        <div className="text-center mt-4 text-sm">
+          {isLogin ? (
+            <>
+              Don’t have an account?{" "}
+              <button
+                onClick={() => setIsLogin(false)}
+                className="text-purple-300 hover:text-purple-200 underline"
+              >
+                Sign up
+              </button>
+            </>
+          ) : (
+            <>
+              Already a user?{" "}
+              <button
+                onClick={() => setIsLogin(true)}
+                className="text-purple-300 hover:text-purple-200 underline"
+              >
+                Login
+              </button>
+            </>
+          )}
         </div>
-        <div className="mb-6">
-          <label
-            htmlFor="password"
-            className="block text-gray-700 font-semibold mb-2"
-          >
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring focus:ring-blue-300"
-          />
-        </div>
-        <div className="flex justify-center">
-          <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-          >
-            Log In
-          </button>
-        </div>
-        <div className="flex  justify-between mt-4">
-          <div className="flex">
-            <ul className="ContainerLinks">
-              <li>
-                <Link href="/signin/passrestore">Forgot password?</Link>
-              </li>
-            </ul>
-          </div>
-          <div className="flex">
-            <ul className="ContainerLikns">
-              <li>
-                <Link href="/registration">Already have an account?</Link>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </form>
+      </motion.div>
     </div>
   );
 }

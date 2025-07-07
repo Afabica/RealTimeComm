@@ -1,7 +1,8 @@
 use actix::prelude::*;
 use std::collections::{HashMap, HashSet};
-use crate::components::models::chat_group::{ChatGroup, ChatMessage};
+use crate::components::models::chat_group::ChatGroup;
 use uuid::Uuid;
+use actix::Message;
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -22,23 +23,36 @@ impl ChatServer {
     }
 }
 
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Join {
-    pub addr: Recipient<ChatMessage>,
-    pub group: String,
-}
+impl Handler<ClientMessage> for ChatServer {
+    type Result = Result<String, String>;
 
-impl Handler<Join> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: Join, _: &mut Self::Context) {
-        slef.groups
-            .entry(msg.group.clone())
-            .or_default()
-            .insert(msg.addr);
+    fn handle(&mut self, msg: ClientMessage, _ctx: &mut Context<Self>)-> Self::Result {
+        if msg.text == "foo" {
+            Ok("bar".to_string())
+        } else {
+            Err("Key not found".to_string())
+        }
     }
 }
+
+
+//#[derive(Message)]
+//#[rtype(result = "()")]
+//pub struct Join {
+//    pub addr: Recipient<ChatMessage>,
+//    pub group: String,
+//}
+//
+//impl Handler<Join> for ChatServer {
+//    type Result = ();
+//
+//    fn handle(&mut self, msg: Join, _: &mut Self::Context) {
+//        self.groups
+//            .entry(msg.group.clone())
+//            .or_default()
+//            .insert(msg.addr);
+//    }
+//}
 
 impl Actor for ChatServer {
     type Context = Context<Self>;
@@ -115,24 +129,24 @@ impl Handler<Disconnect> for ChatServer {
 }
 
 #[derive(Message)]
-#[rtype(result = "()")]
+#[rtype(result = "Result<String, String>")]
 pub struct ClientMessage {
     pub id: Uuid,
-    pub group: String,
+    pub group: Option<String>,
     pub text: String,
 }
 
-impl Handler<ClientMessage> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: ChatMessage, _: &mut Self::Context) {
-        if let Some(users) = self.groups.get(&msg.group) {
-            for user in users {
-                let _ = user.do_send(ChatMessage {
-                    group: msg.group.clone(),
-                    message: msg.message.clone(),
-                });
-            }
-        }
-    }
-}
+//impl Handler<ClientMessage> for ChatServer {
+//    type Result = ();
+//
+//    fn handle(&mut self, msg: ChatMessage, _: &mut Self::Context) {
+//        if let Some(users) = self.groups.get(&msg.group) {
+//            for user in users {
+//                let _ = user.do_send(ChatMessage {
+//                    group: msg.group.clone(),
+//                    message: msg.message.clone(),
+//                });
+//            }
+//        }
+//    }
+//}

@@ -22,6 +22,15 @@ impl StunHeader {
             transaction_id: buf[8..20].try_into().ok()?,
         })
     }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(4 + self.message_length as usize + 4);
+        buf.extend(&self.message_type.to_be_bytes());
+        buf.extend(&self.message_length.to_be_bytes());
+        buf.extend(&self.magic_cookie.to_be_bytes());
+        buf.extend(&self.transaction_id.to_vec());
+        buf
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -32,7 +41,6 @@ pub struct StunAttribute {
 }
 
 impl StunAttribute {
-    /// Parse one attribute from bytes, returning the attribute and total consumed length (incl padding)
     pub fn parse(bytes: &[u8]) -> Result<(Self, usize), String> {
         if bytes.len() < 4 {
             return Err("Not enough bytes for attribute header".to_string());
@@ -116,7 +124,6 @@ impl StunMessage {
         &self.raw
     }
 
-    /// Parse bytes into StunMessage
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         if bytes.len() < 20 {
             return Err("Invalid STUN message: too short".to_string());
@@ -140,9 +147,6 @@ impl StunMessage {
         })
     }
 }
-
-// The rest of your enums and structs remain mostly unchanged
-// Just rename fields to Rust naming convention (snake_case) if you want idiomatic code.
 
 #[derive(Debug, Clone)]
 pub enum XorMappedAddress {

@@ -1,11 +1,11 @@
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger};
 mod components;
-use components::services::database::{iterate_mongodb_collection, iterate_postgres_collection, connect_to_mongodb, connect_to_postgres, check_mongo_connection, ping};
-use components::services::database::{simple_authentication, simple_registration, get_specific_user_information}; 
+use components::services::auth_reg::{iterate_mongodb_collection, iterate_postgres_collection, connect_to_mongodb, connect_to_postgres, check_mongo_connection, ping};
+use components::services::auth_reg::{simple_authentication, simple_registration, get_specific_user_information}; 
 use components::services::clserver::ws_index;
-use components::services::p2p::chat_route;
 use components::models::model_mongo::{AppState, AppSettings};
 use components::services::clserver_entities::ChatServer;
+use components::servers::signaling_serv::ws_handler;
 use rocket::yansi::Paint;
 use actix::Actor;
 use dotenvy::dotenv;
@@ -82,8 +82,9 @@ async fn main() -> std::io::Result<()> {
                 chat_server: chat_server.clone(), 
             })) 
             .wrap(Logger::default())
-            .route("/ws/", web::get().to(ws_index))
+            .route("/ws/", web::get().to(ws_handler))
             .route("/login", web::post().to(simple_authentication))
+
             .route("/registration", web::post().to(simple_registration))
     })
     .bind(("127.0.0.1", 8080))?

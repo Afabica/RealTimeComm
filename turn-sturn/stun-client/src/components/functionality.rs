@@ -89,18 +89,6 @@ pub fn build_request() -> StunMessage {
 
     stun_package
 }
-//pub fn build_indication_request(_user_identities: &MessageParams) -> StunMessage {
-//    StunMessage {
-//        header: StunHeader {
-//            message_type: 0x0011,
-//            message_length: 0,
-//            magic_cookie: 0x2112A442,
-//            transaction_id: generate_transaction_id(),
-//        },
-//        attributes: Vec::new(),
-//        raw: Vec::new(),
-//    }
-//}
 
 pub fn parse_xor_mapped_address(attr: &StunAttribute) -> Option<SocketAddr> {
     if attr.value.len() < 8 {

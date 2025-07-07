@@ -4,8 +4,22 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import MessageField from "./MessageField";
 import SidePanel from "./SidePanel";
+import GET from "../../tools/protected_api";
+import SectionSelector from "./UpperPanel";
 
 export default function DashBoardPage() {
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    const fetchTokenFromCookies = async () => {
+      const res = GET();
+      setToken(res);
+    };
+
+    if (token == null) {
+      fetchTokenFromCookies();
+    }
+  }, []);
   const friends = [
     {
       id: "1",
@@ -34,8 +48,9 @@ export default function DashBoardPage() {
   ];
 
   return (
-    <div className="flex justify-center h-[70%] overflow-hidden">
-      <SidePanel friends={friends} />
+    <div className="flex justify-center min-h-screen overflow-hidden">
+      <SidePanel />
+      <SectionSelector />
       <MessageField />
     </div>
   );
