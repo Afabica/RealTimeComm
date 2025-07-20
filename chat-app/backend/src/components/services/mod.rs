@@ -1,18 +1,18 @@
-#[path = "auth_reg.rs"]
-pub mod auth_reg;
-
-#[path = "api.rs"]
-pub mod api; 
 
 #[path = "modesswitch.rs"]
 pub mod modesswitch;
 
+#[path = "webrtc.rs"]
+pub mod webrtc;
 
 #[path = "p2p.rs"]
 pub mod p2p;
 
 #[path = "clserver.rs"]
 pub mod clserver;
+
+#[path = "user_operations.rs"]
+pub mod user_operations;
 
 
 #[path = "clserver_entities.rs"]

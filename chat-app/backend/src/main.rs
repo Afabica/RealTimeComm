@@ -1,14 +1,15 @@
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger};
 mod components;
-use components::services::auth_reg::{iterate_mongodb_collection, iterate_postgres_collection, connect_to_mongodb, connect_to_postgres, check_mongo_connection, ping};
-use components::services::auth_reg::{simple_authentication, simple_registration, get_specific_user_information}; 
-use components::services::clserver::ws_index;
+use components::services::user_operations::{iterate_mongodb_collection, iterate_postgres_collection, connect_to_mongodb, connect_to_postgres, check_mongo_connection};
+use components::services::user_operations::{simple_authentication, simple_registration, get_specific_user_information}; 
 use components::models::model_mongo::{AppState, AppSettings};
 use components::services::clserver_entities::ChatServer;
 use components::servers::signaling_serv::ws_handler;
 use rocket::yansi::Paint;
 use actix::Actor;
+use tokio::task;
 use dotenvy::dotenv;
+
 use std::env;
 use tokio::task::LocalSet;
 
@@ -74,6 +75,8 @@ async fn main() -> std::io::Result<()> {
         println!("MongoDB Iteration Completed");
     }
 
+    task::spawn(ws_handler());
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(AppState {
@@ -82,7 +85,7 @@ async fn main() -> std::io::Result<()> {
                 chat_server: chat_server.clone(), 
             })) 
             .wrap(Logger::default())
-            .route("/ws/", web::get().to(ws_handler))
+//            .route("/ws/", web::get().to(ws_handler))
             .route("/login", web::post().to(simple_authentication))
 
             .route("/registration", web::post().to(simple_registration))

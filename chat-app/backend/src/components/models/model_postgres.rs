@@ -13,7 +13,7 @@ use chrono::{Utc, DateTime};
 pub struct Token {
     pub sub: String, 
     pub exp: usize,
-    pub roles: Option<Vec<String>>,
+    pub roles: Vec<String>,
 
 }   
 
@@ -22,7 +22,7 @@ impl Token {
         Self {
             sub: sub.to_string(),
             exp: exp as usize,
-            roles: Some(roles.to_vec()),
+            roles: roles.to_vec(),
         }
     }
 }
